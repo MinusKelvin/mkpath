@@ -30,6 +30,16 @@ impl BitGrid {
         }
     }
 
+    #[inline(always)]
+    pub fn width(&self) -> i32 {
+        self.width
+    }
+
+    #[inline(always)]
+    pub fn height(&self) -> i32 {
+        self.height
+    }
+
     #[track_caller]
     #[inline(always)]
     pub fn get(&self, x: i32, y: i32) -> bool {
@@ -91,8 +101,8 @@ impl BitGrid {
 
     #[inline(always)]
     fn index(&self, x: i32, y: i32) -> (usize, usize) {
-        let padded_y = y as usize + 1;
-        let padded_x = x as usize + 1;
+        let padded_y = (y + 1) as usize;
+        let padded_x = (x + 1) as usize;
         let bit = padded_x + padded_y * self.padded_width as usize;
         (bit / 8 + 8, bit % 8)
     }

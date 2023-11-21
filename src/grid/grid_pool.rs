@@ -22,6 +22,7 @@ impl GridPool {
     ) -> Self {
         assert!(width >= 0, "width must be non-negative");
         assert!(height >= 0, "height must be non-negative");
+        assert!(allocator.same_layout(state_field), "mismatched layouts");
         let num = (width as usize)
             .checked_mul(height as usize)
             .expect("width*height exceeds usize::MAX");
@@ -33,6 +34,21 @@ impl GridPool {
             state_field,
             allocator,
         }
+    }
+
+    #[inline(always)]
+    pub fn width(&self) -> i32 {
+        self.width
+    }
+
+    #[inline(always)]
+    pub fn height(&self) -> i32 {
+        self.height
+    }
+
+    #[inline(always)]
+    pub fn state_member(&self) -> NodeMemberPointer<(i32, i32)> {
+        self.state_field
     }
 
     pub fn reset(&mut self) {
@@ -64,7 +80,9 @@ impl GridPool {
             unsafe { NodeRef::from_raw(NonNull::new_unchecked(ptr)) }
         } else {
             let ptr = self.allocator.generate_node();
-            ptr.set(self.state_field, (x, y));
+            unsafe {
+                ptr.set_unchecked(self.state_field, (x, y));
+            }
             slot.set((self.search_number, ptr.raw().as_ptr()));
             ptr
         }
