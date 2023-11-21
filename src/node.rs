@@ -156,25 +156,27 @@ impl<'a> NodeRef<'a> {
 
     #[inline(always)]
     pub fn has_field<T: Copy + 'static>(self, f: NodeMemberPointer<T>) -> bool {
-        unsafe { self.header() }.layout_id == f.layout_id
+        self.layout_id() == f.layout_id
     }
 
     #[inline(always)]
-    pub fn get_parent(&self) -> Option<NodeRef<'a>> {
-        unsafe { self.header() }.parent.map(|ptr| NodeRef {
-            ptr,
-            _marker: PhantomData,
-        })
+    pub fn get_parent(self) -> Option<NodeRef<'a>> {
+        unsafe { &*self.ptr.as_ptr().cast::<NodeHeader>() }
+            .parent
+            .map(|ptr| NodeRef {
+                ptr,
+                _marker: PhantomData,
+            })
     }
 
     #[inline(always)]
-    pub fn set_parent(&self, parent: Option<NodeRef<'a>>) {
-        unsafe { self.header() }.parent = parent.map(|ptr| ptr.ptr);
+    pub fn set_parent(self, parent: Option<NodeRef<'a>>) {
+        unsafe { &mut *self.ptr.as_ptr().cast::<NodeHeader>() }.parent = parent.map(|ptr| ptr.ptr);
     }
 
     #[cfg_attr(debug_assertions, track_caller)]
     #[inline(always)]
-    pub unsafe fn get_unchecked<T: Copy + 'static>(&self, f: NodeMemberPointer<T>) -> T {
+    pub unsafe fn get_unchecked<T: Copy + 'static>(self, f: NodeMemberPointer<T>) -> T {
         #[cfg(debug_assertions)]
         self.check_layout(f.layout_id);
         // SAFETY: Since `f` is for the layout of this node, there exists an object of type T at
@@ -184,7 +186,7 @@ impl<'a> NodeRef<'a> {
 
     #[cfg_attr(debug_assertions, track_caller)]
     #[inline(always)]
-    pub unsafe fn set_unchecked<T: Copy + 'static>(&self, f: NodeMemberPointer<T>, value: T) {
+    pub unsafe fn set_unchecked<T: Copy + 'static>(self, f: NodeMemberPointer<T>, value: T) {
         #[cfg(debug_assertions)]
         self.check_layout(f.layout_id);
         // We do not need to drop the existing object because `T: Copy`.
@@ -195,9 +197,7 @@ impl<'a> NodeRef<'a> {
 
     #[inline(always)]
     pub fn same_layout(self, other: NodeRef) -> bool {
-        // SAFETY: The references returned by `Self::header()` are used immediately and cannot
-        //         exist for long enough to be aliased.
-        unsafe { self.header() }.layout_id == unsafe { other.header() }.layout_id
+        self.layout_id() == other.layout_id()
     }
 
     #[inline(always)]
@@ -219,17 +219,14 @@ impl<'a> NodeRef<'a> {
     }
 
     #[inline(always)]
-    unsafe fn header(&self) -> &mut NodeHeader {
-        // SAFETY: The reference is not dangling since `NodeRef.ptr` always points to the header
-        //         of the node. The caller is responsible for ensuring that the aliasing
-        //         requirements are not violated.
-        unsafe { &mut *self.ptr.as_ptr().cast() }
+    fn layout_id(self) -> u64 {
+        unsafe { &*self.ptr.as_ptr().cast::<NodeHeader>() }.layout_id
     }
 
     #[track_caller]
     #[inline(always)]
     fn check_layout(&self, layout_id: u64) {
-        if unsafe { self.header() }.layout_id != layout_id {
+        if self.layout_id() != layout_id {
             panic!("mismatched layout");
         }
     }
