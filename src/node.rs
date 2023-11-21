@@ -26,7 +26,7 @@ struct NodeHeader {
 }
 
 #[derive(Clone, Copy)]
-pub struct NodeMemberPointer<T> {
+pub struct NodeMemberPointer<T: Copy> {
     layout_id: u64,
     offset: usize,
     _marker: PhantomData<T>,
@@ -131,7 +131,7 @@ impl NodeAllocator {
     }
 
     #[inline(always)]
-    pub fn same_layout<T>(&self, f: NodeMemberPointer<T>) -> bool {
+    pub fn same_layout<T: Copy>(&self, f: NodeMemberPointer<T>) -> bool {
         self.layout_id == f.layout_id
     }
 }
@@ -231,9 +231,9 @@ impl<'a> NodeRef<'a> {
     }
 }
 
-impl<T> NodeMemberPointer<T> {
+impl<T: Copy> NodeMemberPointer<T> {
     #[inline(always)]
-    pub fn same_layout<U>(&self, other: NodeMemberPointer<U>) -> bool {
+    pub fn same_layout<U: Copy>(&self, other: NodeMemberPointer<U>) -> bool {
         self.layout_id == other.layout_id
     }
 }
