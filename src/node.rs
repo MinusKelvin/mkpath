@@ -1,7 +1,6 @@
 use std::alloc::Layout;
 use std::cell::Cell;
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
 use std::process::abort;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -11,7 +10,7 @@ use bumpalo::Bump;
 pub struct NodeBuilder {
     layout_id: u64,
     layout: Layout,
-    default: Vec<MaybeUninit<u8>>,
+    default: Vec<u8>,
 }
 
 #[derive(Clone, Copy)]
@@ -35,7 +34,7 @@ pub struct NodeMemberPointer<T> {
 
 pub struct NodeAllocator {
     layout_id: u64,
-    default: Box<[MaybeUninit<u8>]>,
+    default: Box<[u8]>,
     layout: Layout,
     arena: Bump,
 }
@@ -55,7 +54,7 @@ impl NodeBuilder {
         }
         let layout = Layout::new::<NodeHeader>();
         let mut default = vec![];
-        default.resize(layout.size(), MaybeUninit::uninit());
+        default.resize(layout.size(), 0);
         unsafe {
             // We use `write_unaligned` here because the vector holding the default value has no
             // alignment guarantees.
@@ -78,7 +77,7 @@ impl NodeBuilder {
     pub fn build(self) -> NodeAllocator {
         let layout = self.layout.pad_to_align();
         let mut default = self.default;
-        default.resize(layout.size(), MaybeUninit::uninit());
+        default.resize(layout.size(), 0);
         NodeAllocator {
             layout_id: self.layout_id,
             default: default.into_boxed_slice(),
@@ -89,7 +88,7 @@ impl NodeBuilder {
 
     pub fn add_field<T: Copy + 'static>(&mut self, default: T) -> NodeMemberPointer<T> {
         let (layout, offset) = self.layout.extend(Layout::new::<T>()).unwrap();
-        self.default.resize(layout.size(), MaybeUninit::uninit());
+        self.default.resize(layout.size(), 0);
         unsafe {
             // SAFETY: The buffer is sized according to `layout` and the offset refers to a field
             //         of the `layout`, and so this must be in-bounds of the buffer. Additionally,
@@ -124,11 +123,7 @@ impl NodeAllocator {
         unsafe {
             // SAFETY: We have the invariant that `self.default` is valid bytes for initializing a
             //         node, which means it is sized appropriately.
-            std::ptr::copy_nonoverlapping(
-                self.default.as_ptr().cast(),
-                ptr.as_ptr(),
-                self.layout.size(),
-            );
+            std::ptr::copy_nonoverlapping(self.default.as_ptr(), ptr.as_ptr(), self.layout.size());
         }
         NodeRef {
             ptr,
