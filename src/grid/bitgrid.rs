@@ -21,7 +21,7 @@ impl BitGrid {
             .and_then(|b| b.checked_add(8))
             .expect("number of bits in grid exceeds usize::MAX");
         // extra padding for u64 reads
-        let bytes = bits / 8 + 8 + 8;
+        let bytes = 8 + bits / 8 + 8;
         BitGrid {
             width,
             height,
@@ -94,6 +94,6 @@ impl BitGrid {
         let padded_y = y as usize + 1;
         let padded_x = x as usize + 1;
         let bit = padded_x + padded_y * self.padded_width as usize;
-        (bit / 8, bit % 8)
+        (bit / 8 + 8, bit % 8)
     }
 }
