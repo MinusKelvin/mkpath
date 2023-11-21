@@ -1,19 +1,25 @@
 use std::cell::Cell;
 use std::ptr::NonNull;
 
-use crate::node::{NodeAllocator, NodeRef};
+use crate::node::{NodeAllocator, NodeMemberPointer, NodeRef};
 
 pub struct GridPool {
     width: i32,
     height: i32,
     search_number: u64,
     state_map: Box<[Cell<(u64, *mut u8)>]>,
+    state_field: NodeMemberPointer<(i32, i32)>,
     allocator: NodeAllocator,
 }
 
 impl GridPool {
     #[track_caller]
-    pub fn new(allocator: NodeAllocator, width: i32, height: i32) -> Self {
+    pub fn new(
+        allocator: NodeAllocator,
+        state_field: NodeMemberPointer<(i32, i32)>,
+        width: i32,
+        height: i32,
+    ) -> Self {
         assert!(width >= 0, "width must be non-negative");
         assert!(height >= 0, "height must be non-negative");
         let num = (width as usize)
@@ -24,6 +30,7 @@ impl GridPool {
             height,
             search_number: 1,
             state_map: vec![Cell::new((0, std::ptr::null_mut())); num].into_boxed_slice(),
+            state_field,
             allocator,
         }
     }
@@ -57,6 +64,7 @@ impl GridPool {
             unsafe { NodeRef::from_raw(NonNull::new_unchecked(ptr)) }
         } else {
             let ptr = self.allocator.generate_node();
+            ptr.set(self.state_field, (x, y));
             slot.set((self.search_number, ptr.raw().as_ptr()));
             ptr
         }
