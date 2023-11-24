@@ -1,3 +1,5 @@
+use std::f64::consts::SQRT_2;
+
 use crate::node::NodeRef;
 
 use super::{BitGrid, GridPool};
@@ -29,17 +31,37 @@ impl<'a> BitGridExpander<'a> {
         );
 
         unsafe {
+            let north_traversable = self.map.get_unchecked(x, y - 1);
+            if north_traversable {
+                edges.push((self.node_pool.generate_unchecked(x, y - 1), 1.0));
+            }
+
+            let south_traversable = self.map.get_unchecked(x, y + 1);
+            if south_traversable {
+                edges.push((self.node_pool.generate_unchecked(x, y + 1), 1.0));
+            }
+
             if self.map.get_unchecked(x - 1, y) {
                 edges.push((self.node_pool.generate_unchecked(x - 1, y), 1.0));
+
+                if north_traversable && self.map.get_unchecked(x - 1, y - 1) {
+                    edges.push((self.node_pool.generate_unchecked(x - 1, y - 1), SQRT_2));
+                }
+
+                if south_traversable && self.map.get_unchecked(x - 1, y + 1) {
+                    edges.push((self.node_pool.generate_unchecked(x - 1, y + 1), SQRT_2));
+                }
             }
             if self.map.get_unchecked(x + 1, y) {
                 edges.push((self.node_pool.generate_unchecked(x + 1, y), 1.0));
-            }
-            if self.map.get_unchecked(x, y - 1) {
-                edges.push((self.node_pool.generate_unchecked(x, y - 1), 1.0));
-            }
-            if self.map.get_unchecked(x, y + 1) {
-                edges.push((self.node_pool.generate_unchecked(x, y + 1), 1.0));
+
+                if north_traversable && self.map.get_unchecked(x + 1, y - 1) {
+                    edges.push((self.node_pool.generate_unchecked(x + 1, y - 1), SQRT_2));
+                }
+
+                if south_traversable && self.map.get_unchecked(x + 1, y + 1) {
+                    edges.push((self.node_pool.generate_unchecked(x + 1, y + 1), SQRT_2));
+                }
             }
         }
     }
