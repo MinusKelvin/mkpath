@@ -1,3 +1,4 @@
+use std::f64::consts::SQRT_2;
 use std::path::PathBuf;
 
 use mkpath::grid::{BitGridExpander, GridPool};
@@ -20,6 +21,8 @@ fn main() {
     let mut builder = NodeBuilder::new();
     let state = builder.add_field((-1, -1));
     let g = builder.add_field(f64::INFINITY);
+    let h = builder.add_field(f64::NAN);
+    let f = builder.add_field(f64::INFINITY);
     let mut open_list_factory = PriorityQueueFactory::new(&mut builder);
 
     let mut pool = GridPool::new(builder.build(), state, map.width(), map.height());
@@ -27,13 +30,15 @@ fn main() {
     for problem in &scen.instances {
         pool.reset();
 
-        let mut open_list = open_list_factory.new_queue(g);
+        let mut open_list = open_list_factory.new_queue((f, h));
         let mut expander = BitGridExpander::new(&map, &pool);
         let mut edges = vec![];
 
         // start node
         let start = pool.generate(problem.start.0, problem.start.1);
         start.set(g, 0.0);
+        start.set(h, octile(problem.start, problem.target));
+        start.set(f, start.get(g) + start.get(h));
         open_list.push(start);
 
         // target node
@@ -48,10 +53,14 @@ fn main() {
             expander.expand(node, &mut edges);
 
             for &(successor, cost) in &edges {
+                if successor.get(h).is_nan() {
+                    successor.set(h, octile(successor.get(state), problem.target))
+                }
                 let new_g = node.get(g) + cost;
                 if new_g < successor.get(g) {
                     successor.set_parent(Some(node));
                     successor.set(g, new_g);
+                    successor.set(f, new_g + successor.get(h));
                     open_list.push(successor);
                 }
             }
@@ -70,4 +79,12 @@ fn main() {
             println!("failed to find path");
         }
     }
+}
+
+fn octile((x1, y1): (i32, i32), (x2, y2): (i32, i32)) -> f64 {
+    let dx = (x1 - x2).abs();
+    let dy = (y1 - y2).abs();
+    let diagonals = dx.min(dy);
+    let orthos = dx.max(dy) - diagonals;
+    orthos as f64 + diagonals as f64 * SQRT_2
 }

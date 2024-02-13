@@ -91,8 +91,7 @@ impl NodeBuilder {
         self.default.resize(layout.size(), 0);
         unsafe {
             // SAFETY: The buffer is sized according to `layout` and the offset refers to a field
-            //         of the `layout`, and so this must be in-bounds of the buffer. Additionally,
-            //
+            //         of the `layout`, and so this must be in-bounds of the buffer.
             self.default
                 .as_mut_ptr()
                 .add(offset)

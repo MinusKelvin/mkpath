@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader, Error, Read, Result};
+use std::io::{BufRead, BufReader, Error, Result};
 use std::path::{Path, PathBuf};
 
 use mkpath::grid::BitGrid;
@@ -86,7 +86,7 @@ pub fn read_scenario(scen_path: &Path) -> Result<Scenario> {
     })
 }
 
-fn locate_map(map_path: &str, scen_path: &Path) -> Result<PathBuf> {
+fn locate_map(map_path: &str, _scen_path: &Path) -> Result<PathBuf> {
     Ok(Path::new(map_path).to_path_buf())
 }
 

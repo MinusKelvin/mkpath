@@ -14,7 +14,7 @@ impl BitGrid {
         assert!(height < 2_000_000_000, "height must be < 2000000000");
         // height + 2 for a padding row above and a padding row below
         // width + 1 for padding column to the left, which also functions as a padding column
-        // to the right, except for the last row which requires an
+        // to the right, except for the last row which requires an extra bit
         let padded_width = (width + 1) as usize;
         let bits = padded_width
             .checked_mul((height + 2) as usize)
