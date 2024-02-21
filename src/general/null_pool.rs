@@ -8,7 +8,7 @@ pub struct NullPool<S: Copy> {
 impl<S: Copy + 'static> NullPool<S> {
     #[track_caller]
     pub fn new(allocator: NodeAllocator, state_field: NodeMemberPointer<S>) -> Self {
-        assert!(allocator.same_layout(state_field), "mismatched layouts");
+        assert!(allocator.layout_id() == state_field.layout_id(), "mismatched layouts");
         NullPool {
             state_field,
             allocator,

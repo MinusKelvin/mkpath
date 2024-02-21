@@ -22,7 +22,7 @@ impl GridPool {
     ) -> Self {
         assert!(width >= 0, "width must be non-negative");
         assert!(height >= 0, "height must be non-negative");
-        assert!(allocator.same_layout(state_field), "mismatched layouts");
+        assert!(allocator.layout_id() == state_field.layout_id(), "mismatched layouts");
         let num = (width as usize)
             .checked_mul(height as usize)
             .expect("width*height exceeds usize::MAX");

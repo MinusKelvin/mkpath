@@ -16,7 +16,7 @@ pub struct HashPool<S: Copy> {
 impl<S: Copy + Hash + Eq + 'static> HashPool<S> {
     #[track_caller]
     pub fn new(allocator: NodeAllocator, state_field: NodeMemberPointer<S>) -> Self {
-        assert!(allocator.same_layout(state_field), "mismatched layouts");
+        assert!(allocator.layout_id() == state_field.layout_id(), "mismatched layouts");
         HashPool {
             state_field,
             allocator,

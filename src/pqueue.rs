@@ -9,13 +9,24 @@ pub struct PriorityQueueFactory {
 pub struct PriorityQueue<'a, C> {
     cmp: C,
     index: NodeMemberPointer<usize>,
+    // We have the invariant that all NodeRefs in this heap have the same layout as index and cmp.
     heap: Vec<NodeRef<'a>>,
 }
 
+/// Trait for ordering `NodeRef`s by their field(s).
+///
+/// # Safety
+/// If `Self::compatible_layout` returns true for a layout id, then it must be safe to pass
+// `NodeRef`s with that layout id to `Self::le`.
 pub unsafe trait FieldComparator {
-    unsafe fn le(&self, lhs: NodeRef, rhs: NodeRef) -> bool;
+    /// Perform `<=` comparison.
+    ///
+    /// # Safety
+    /// The caller must ensure that the layout ids of the `NodeRef`s cause
+    /// `Self::compatible_layout` to return true.
+    unsafe fn le_unchecked(&self, lhs: NodeRef, rhs: NodeRef) -> bool;
 
-    fn same_layout(&self, index: NodeMemberPointer<usize>) -> bool;
+    fn compatible_layout(&self, layout_id: LayoutId) -> bool;
 }
 
 impl PriorityQueueFactory {
@@ -25,8 +36,8 @@ impl PriorityQueueFactory {
         }
     }
 
-    pub fn new_queue<C: FieldComparator>(&mut self, cmp: C) -> PriorityQueue<C> {
-        assert!(cmp.same_layout(self.index));
+    pub fn new_queue<'a, C: FieldComparator>(&mut self, cmp: C) -> PriorityQueue<'a, C> {
+        assert!(cmp.compatible_layout(self.index.layout_id()));
         PriorityQueue {
             cmp,
             index: self.index,
@@ -68,7 +79,7 @@ impl<'a, C: FieldComparator> PriorityQueue<'a, C> {
             while index > 0 {
                 let parent_index = (index - 1) / 2;
                 let parent = *self.heap.get_unchecked(parent_index);
-                if self.cmp.le(parent, node) {
+                if self.cmp.le_unchecked(parent, node) {
                     break;
                 }
                 *self.heap.get_unchecked_mut(index) = parent;
@@ -96,7 +107,7 @@ impl<'a, C: FieldComparator> PriorityQueue<'a, C> {
                 if child_2_index < self.heap.len() {
                     let child_2 = self.heap[child_2_index];
 
-                    if self.cmp.le(child_1, child_2) {
+                    if self.cmp.le_unchecked(child_1, child_2) {
                         child_index = child_1_index;
                         child = child_1;
                     } else {
@@ -108,7 +119,7 @@ impl<'a, C: FieldComparator> PriorityQueue<'a, C> {
                     child = child_1;
                 }
 
-                if self.cmp.le(node, child) {
+                if self.cmp.le_unchecked(node, child) {
                     break;
                 }
 
@@ -124,39 +135,54 @@ impl<'a, C: FieldComparator> PriorityQueue<'a, C> {
 }
 
 unsafe impl<T: PartialOrd + Copy + 'static> FieldComparator for NodeMemberPointer<T> {
-    unsafe fn le(&self, lhs: NodeRef, rhs: NodeRef) -> bool {
+    unsafe fn le_unchecked(&self, lhs: NodeRef, rhs: NodeRef) -> bool {
         unsafe { lhs.get_unchecked(*self) <= rhs.get_unchecked(*self) }
     }
 
-    fn same_layout(&self, index: NodeMemberPointer<usize>) -> bool {
-        self.same_layout(index)
+    fn compatible_layout(&self, layout_id: LayoutId) -> bool {
+        self.layout_id() == layout_id
     }
 }
 
 unsafe impl<T: PartialOrd + Copy + 'static> FieldComparator for Reverse<NodeMemberPointer<T>> {
-    unsafe fn le(&self, lhs: NodeRef, rhs: NodeRef) -> bool {
+    unsafe fn le_unchecked(&self, lhs: NodeRef, rhs: NodeRef) -> bool {
         unsafe { lhs.get_unchecked(self.0) >= rhs.get_unchecked(self.0) }
     }
 
-    fn same_layout(&self, index: NodeMemberPointer<usize>) -> bool {
-        self.0.same_layout(index)
+    fn compatible_layout(&self, layout_id: LayoutId) -> bool {
+        self.0.compatible_layout(layout_id)
     }
 }
 
-unsafe impl<A: FieldComparator, B: FieldComparator> FieldComparator for (A, B) {
-    unsafe fn le(&self, lhs: NodeRef, rhs: NodeRef) -> bool {
-        if self.0.le(lhs, rhs) {
-            if self.0.le(rhs, lhs) {
-                self.1.le(lhs, rhs)
-            } else {
-                true
+macro_rules! tuple_fieldcmp_impl {
+    ($($typ:ident $index:tt)*) => {
+        unsafe impl<$($typ: FieldComparator),*> FieldComparator for ($($typ,)*) {
+            unsafe fn le_unchecked(&self, lhs: NodeRef, rhs: NodeRef) -> bool {
+                tuple_fieldcmp_impl!(@cmp self lhs rhs $($index)*)
             }
-        } else {
-            false
-        }
-    }
 
-    fn same_layout(&self, index: NodeMemberPointer<usize>) -> bool {
-        self.0.same_layout(index) && self.1.same_layout(index)
-    }
+            fn compatible_layout(&self, layout_id: LayoutId) -> bool {
+                $(self.$index.compatible_layout(layout_id))&&*
+            }
+        }
+    };
+    (@cmp $self:ident $lhs:ident $rhs:ident $last:tt) => {
+        $self.$last.le_unchecked($lhs, $rhs)
+    };
+    (@cmp $self:ident $lhs:ident $rhs:ident $next:tt $($rest:tt)+) => {
+        if $self.$next.le_unchecked($lhs, $rhs) {
+            true
+        } else if $self.$next.le_unchecked($rhs, $lhs) {
+            false
+        } else {
+            tuple_fieldcmp_impl!(@cmp $self $lhs $rhs $($rest)*)
+        }
+    };
 }
+
+tuple_fieldcmp_impl!(A 0);
+tuple_fieldcmp_impl!(A 0 B 1);
+tuple_fieldcmp_impl!(A 0 B 1 C 2);
+tuple_fieldcmp_impl!(A 0 B 1 C 2 D 3);
+tuple_fieldcmp_impl!(A 0 B 1 C 2 D 3 E 4);
+tuple_fieldcmp_impl!(A 0 B 1 C 2 D 3 E 4 F 5);

@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use bumpalo::Bump;
 
 pub struct NodeBuilder {
-    layout_id: u64,
+    layout_id: LayoutId,
     layout: Layout,
     default: Vec<u8>,
 }
@@ -19,21 +19,24 @@ pub struct NodeRef<'a> {
     _marker: PhantomData<Cell<&'a ()>>,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct LayoutId(u64);
+
 #[derive(Clone, Copy)]
 struct NodeHeader {
-    layout_id: u64,
+    layout_id: LayoutId,
     parent: Option<NonNull<u8>>,
 }
 
 #[derive(Clone, Copy)]
 pub struct NodeMemberPointer<T: Copy> {
-    layout_id: u64,
+    layout_id: LayoutId,
     offset: usize,
     _marker: PhantomData<T>,
 }
 
 pub struct NodeAllocator {
-    layout_id: u64,
+    layout_id: LayoutId,
     default: Box<[u8]>,
     layout: Layout,
     arena: Bump,
@@ -41,17 +44,27 @@ pub struct NodeAllocator {
 
 static LAYOUT_ID: AtomicU64 = AtomicU64::new(0);
 
-impl NodeBuilder {
-    pub fn new() -> NodeBuilder {
+impl LayoutId {
+    fn new() -> Self {
         let layout_id = LAYOUT_ID.fetch_add(1, Ordering::SeqCst);
-        if layout_id == u64::MAX {
-            // Safety can be violated if layout ids end up shared, so if we wrap layout_id then
-            // we need to abort the process to prevent this. Panicking (with or without reverting
-            // the increment) is not enough. We don't expect this to ever happen in practice, since
-            // constructing u64::MAX layouts would both take a very long time and be a symptom of
-            // misuse of the library.
+        if layout_id > i64::MAX as u64 {
+            // Safety can be violated if layout ids end up shared, so if we exceed i64::MAX
+            // layout_ids then we need to abort the process to prevent this. This is the same
+            // strategy Arc uses to avoid a similar issue, and is not technically fool-proof;
+            // theoretically, after reaching i64::MAX layouts, i64::MAX new layouts could be
+            // created between the atomic increment and the abort causing the u64 to wrap, but this
+            // seems incredibly unlikely. We don't expect this abort to ever happen in practice,
+            // since constructing i64::MAX layouts would both take a very long time and be a
+            // symptom of misuse of the library. You're supposed to keep your node allocator around.
             abort();
         }
+        LayoutId(layout_id)
+    }
+}
+
+impl NodeBuilder {
+    pub fn new() -> NodeBuilder {
+        let layout_id = LayoutId::new();
         let layout = Layout::new::<NodeHeader>();
         let mut default = vec![];
         default.resize(layout.size(), 0);
@@ -130,9 +143,8 @@ impl NodeAllocator {
         }
     }
 
-    #[inline(always)]
-    pub fn same_layout<T: Copy>(&self, f: NodeMemberPointer<T>) -> bool {
-        self.layout_id == f.layout_id
+    pub fn layout_id(&self) -> LayoutId {
+        self.layout_id
     }
 }
 
@@ -154,8 +166,10 @@ impl<'a> NodeRef<'a> {
     }
 
     #[inline(always)]
-    pub fn has_field<T: Copy + 'static>(self, f: NodeMemberPointer<T>) -> bool {
-        self.layout_id() == f.layout_id
+    pub fn layout_id(self) -> LayoutId {
+        // SAFETY: All NodeRefs start with a `NodeHeader` struct, so the resulting reference refers
+        // to a valid `NodeHeader`.
+        unsafe { &*self.ptr.as_ptr().cast::<NodeHeader>() }.layout_id
     }
 
     #[inline(always)]
@@ -173,6 +187,10 @@ impl<'a> NodeRef<'a> {
         unsafe { &mut *self.ptr.as_ptr().cast::<NodeHeader>() }.parent = parent.map(|ptr| ptr.ptr);
     }
 
+    /// Gets the specified field without compatibility checking.
+    ///
+    /// # Safety
+    /// The caller must ensure that the `NodeMemberPointer` has the same layout id as `self`.
     #[cfg_attr(debug_assertions, track_caller)]
     #[inline(always)]
     pub unsafe fn get_unchecked<T: Copy + 'static>(self, f: NodeMemberPointer<T>) -> T {
@@ -183,6 +201,10 @@ impl<'a> NodeRef<'a> {
         unsafe { self.ptr.as_ptr().add(f.offset).cast::<T>().read() }
     }
 
+    /// Sets the specified field without compatibility checking.
+    ///
+    /// # Safety
+    /// The caller must ensure that the `NodeMemberPointer` has the same layout id as `self`.
     #[cfg_attr(debug_assertions, track_caller)]
     #[inline(always)]
     pub unsafe fn set_unchecked<T: Copy + 'static>(self, f: NodeMemberPointer<T>, value: T) {
@@ -195,11 +217,6 @@ impl<'a> NodeRef<'a> {
     }
 
     #[inline(always)]
-    pub fn same_layout(self, other: NodeRef) -> bool {
-        self.layout_id() == other.layout_id()
-    }
-
-    #[inline(always)]
     pub fn same_ptr(self, other: NodeRef) -> bool {
         self.ptr == other.ptr
     }
@@ -209,6 +226,12 @@ impl<'a> NodeRef<'a> {
         self.ptr
     }
 
+    /// Constructs a `NodeRef` from a raw pointer.
+    ///
+    /// # Safety
+    /// The pointer must have been previously returned by a call to `NodeRef::raw`, and the
+    /// underlying `NodeRef` must not have been freed. The caller should also be careful that the
+    /// lifetime of the returned `NodeRef` does not exceed the actual lifetime of the data.
     #[inline(always)]
     pub unsafe fn from_raw(ptr: NonNull<u8>) -> Self {
         NodeRef {
@@ -217,14 +240,9 @@ impl<'a> NodeRef<'a> {
         }
     }
 
-    #[inline(always)]
-    fn layout_id(self) -> u64 {
-        unsafe { &*self.ptr.as_ptr().cast::<NodeHeader>() }.layout_id
-    }
-
     #[track_caller]
     #[inline(always)]
-    fn check_layout(&self, layout_id: u64) {
+    fn check_layout(&self, layout_id: LayoutId) {
         if self.layout_id() != layout_id {
             panic!("mismatched layout");
         }
@@ -233,7 +251,7 @@ impl<'a> NodeRef<'a> {
 
 impl<T: Copy> NodeMemberPointer<T> {
     #[inline(always)]
-    pub fn same_layout<U: Copy>(&self, other: NodeMemberPointer<U>) -> bool {
-        self.layout_id == other.layout_id
+    pub fn layout_id(&self) -> LayoutId {
+        self.layout_id
     }
 }
