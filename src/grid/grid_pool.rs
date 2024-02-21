@@ -3,11 +3,11 @@ use std::ptr::NonNull;
 
 use crate::node::{NodeAllocator, NodeMemberPointer, NodeRef};
 
+use super::grid::Grid;
+
 pub struct GridPool {
-    width: i32,
-    height: i32,
+    state_map: Grid<Cell<(u64, *mut u8)>>,
     search_number: u64,
-    state_map: Box<[Cell<(u64, *mut u8)>]>,
     state_field: NodeMemberPointer<(i32, i32)>,
     allocator: NodeAllocator,
 }
@@ -20,17 +20,14 @@ impl GridPool {
         width: i32,
         height: i32,
     ) -> Self {
-        assert!(width >= 0, "width must be non-negative");
-        assert!(height >= 0, "height must be non-negative");
-        assert!(allocator.layout_id() == state_field.layout_id(), "mismatched layouts");
-        let num = (width as usize)
-            .checked_mul(height as usize)
-            .expect("width*height exceeds usize::MAX");
+        assert!(
+            allocator.layout_id() == state_field.layout_id(),
+            "mismatched layouts"
+        );
+
         GridPool {
-            width,
-            height,
             search_number: 1,
-            state_map: vec![Cell::new((0, std::ptr::null_mut())); num].into_boxed_slice(),
+            state_map: Grid::new(width, height, |_, _| Cell::new((0, std::ptr::null_mut()))),
             state_field,
             allocator,
         }
@@ -38,12 +35,12 @@ impl GridPool {
 
     #[inline(always)]
     pub fn width(&self) -> i32 {
-        self.width
+        self.state_map.width()
     }
 
     #[inline(always)]
     pub fn height(&self) -> i32 {
-        self.height
+        self.state_map.height()
     }
 
     #[inline(always)]
@@ -53,7 +50,9 @@ impl GridPool {
 
     pub fn reset(&mut self) {
         self.search_number = self.search_number.checked_add(1).unwrap_or_else(|| {
-            self.state_map.fill(Cell::new((0, std::ptr::null_mut())));
+            self.state_map
+                .storage_mut()
+                .fill(Cell::new((0, std::ptr::null_mut())));
             1
         });
         self.allocator.reset();
@@ -62,18 +61,14 @@ impl GridPool {
     #[track_caller]
     #[inline(always)]
     pub fn generate(&self, x: i32, y: i32) -> NodeRef {
-        self.bounds_check(x, y);
+        let _ = self.state_map[(x, y)];
         unsafe { self.generate_unchecked(x, y) }
     }
 
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
     pub unsafe fn generate_unchecked(&self, x: i32, y: i32) -> NodeRef {
-        #[cfg(debug_assertions)]
-        self.bounds_check(x, y);
-        let slot = self
-            .state_map
-            .get_unchecked(x as usize + y as usize * self.width as usize);
+        let slot = unsafe { self.state_map.get_unchecked(x, y) };
         let (num, ptr) = slot.get();
         if num == self.search_number {
             debug_assert!(!ptr.is_null());
@@ -86,14 +81,5 @@ impl GridPool {
             slot.set((self.search_number, ptr.raw().as_ptr()));
             ptr
         }
-    }
-
-    #[track_caller]
-    #[inline(always)]
-    fn bounds_check(&self, x: i32, y: i32) {
-        assert!(x >= 0, "x out of bounds");
-        assert!(y >= 0, "y out of bounds");
-        assert!(x < self.width, "x out of bounds");
-        assert!(y < self.height, "y out of bounds");
     }
 }
