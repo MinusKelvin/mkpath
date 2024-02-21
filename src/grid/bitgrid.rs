@@ -81,6 +81,30 @@ impl BitGrid {
         }
     }
 
+    #[inline(always)]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub unsafe fn get_row_east(&self, x: i32, y: i32) -> u64 {
+        #[cfg(debug_assertions)]
+        self.padded_bounds_check(x, y);
+        let (byte, bit) = self.index(x, y);
+        let raw_bits = u64::from_le_bytes(unsafe {
+            self.bits.get_unchecked(byte..byte + 8).try_into().unwrap()
+        });
+        raw_bits >> bit
+    }
+
+    #[inline(always)]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub unsafe fn get_row_west(&self, x: i32, y: i32) -> u64 {
+        #[cfg(debug_assertions)]
+        self.padded_bounds_check(x, y);
+        let (byte, bit) = self.index(x, y);
+        let raw_bits = u64::from_le_bytes(unsafe {
+            self.bits.get_unchecked(byte-7..byte + 1).try_into().unwrap()
+        });
+        raw_bits << 7 - bit
+    }
+
     #[track_caller]
     #[inline(always)]
     fn padded_bounds_check(&self, x: i32, y: i32) {
