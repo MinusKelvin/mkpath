@@ -12,8 +12,8 @@ pub struct JpsGrid {
 impl From<BitGrid> for JpsGrid {
     fn from(map: BitGrid) -> Self {
         let mut tmap = BitGrid::new(map.height(), map.width());
-        for x in 0..map.width() {
-            for y in 0..map.height() {
+        for x in 0..tmap.width() {
+            for y in 0..tmap.height() {
                 tmap.set(x, y, map.get(y, x));
             }
         }
