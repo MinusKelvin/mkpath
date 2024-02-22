@@ -15,9 +15,12 @@ pub struct NodeBuilder {
 
 #[derive(Clone, Copy)]
 pub struct NodeRef<'a> {
-    ptr: NonNull<u8>,
+    ptr: NonNull<Node>,
     _marker: PhantomData<Cell<&'a ()>>,
 }
+
+/// Pointee type for pointers to nodes.
+pub enum Node {}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LayoutId(u64);
@@ -25,7 +28,7 @@ pub struct LayoutId(u64);
 #[derive(Clone, Copy)]
 struct NodeHeader {
     layout_id: LayoutId,
-    parent: Option<NonNull<u8>>,
+    parent: Option<NonNull<Node>>,
 }
 
 #[derive(Clone, Copy)]
@@ -138,7 +141,7 @@ impl NodeAllocator {
             std::ptr::copy_nonoverlapping(self.default.as_ptr(), ptr.as_ptr(), self.layout.size());
         }
         NodeRef {
-            ptr,
+            ptr: ptr.cast(),
             _marker: PhantomData,
         }
     }
@@ -198,7 +201,7 @@ impl<'a> NodeRef<'a> {
         self.check_layout(f.layout_id);
         // SAFETY: Since `f` is for the layout of this node, there exists an object of type T at
         //         the specified offset from this node's pointer.
-        unsafe { self.ptr.as_ptr().add(f.offset).cast::<T>().read() }
+        unsafe { self.ptr.as_ptr().cast::<u8>().add(f.offset).cast::<T>().read() }
     }
 
     /// Sets the specified field without compatibility checking.
@@ -213,7 +216,7 @@ impl<'a> NodeRef<'a> {
         // We do not need to drop the existing object because `T: Copy`.
         // SAFETY: Since `f` is for the layout of this node, there exists an object of type T at
         //         the specified offset from this node's pointer.
-        unsafe { self.ptr.as_ptr().add(f.offset).cast::<T>().write(value) }
+        unsafe { self.ptr.as_ptr().cast::<u8>().add(f.offset).cast::<T>().write(value) }
     }
 
     #[inline(always)]
@@ -222,7 +225,7 @@ impl<'a> NodeRef<'a> {
     }
 
     #[inline(always)]
-    pub fn raw(self) -> NonNull<u8> {
+    pub fn raw(self) -> NonNull<Node> {
         self.ptr
     }
 
@@ -233,7 +236,7 @@ impl<'a> NodeRef<'a> {
     /// underlying `NodeRef` must not have been freed. The caller should also be careful that the
     /// lifetime of the returned `NodeRef` does not exceed the actual lifetime of the data.
     #[inline(always)]
-    pub unsafe fn from_raw(ptr: NonNull<u8>) -> Self {
+    pub unsafe fn from_raw(ptr: NonNull<Node>) -> Self {
         NodeRef {
             ptr,
             _marker: PhantomData,

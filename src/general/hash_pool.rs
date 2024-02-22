@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::ptr::NonNull;
 
-use crate::node::{NodeAllocator, NodeMemberPointer, NodeRef};
+use crate::node::{Node, NodeAllocator, NodeMemberPointer, NodeRef};
 
 pub struct HashPool<S: Copy> {
     state_field: NodeMemberPointer<S>,
     allocator: NodeAllocator,
     // We use RefCell instead of UnsafeCell since the Hash implementation for S could
     // theoretically reentrantly call HashPool::generate, which would cause UB.
-    map: RefCell<HashMap<S, NonNull<u8>>>,
+    map: RefCell<HashMap<S, NonNull<Node>>>,
 }
 
 impl<S: Copy + Hash + Eq + 'static> HashPool<S> {

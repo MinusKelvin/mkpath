@@ -1,12 +1,12 @@
 use std::cell::Cell;
 use std::ptr::NonNull;
 
-use crate::node::{NodeAllocator, NodeMemberPointer, NodeRef};
+use crate::node::{Node, NodeAllocator, NodeMemberPointer, NodeRef};
 
 use super::grid::Grid;
 
 pub struct GridPool {
-    state_map: Grid<Cell<(u64, *mut u8)>>,
+    state_map: Grid<Cell<(u64, *mut Node)>>,
     search_number: u64,
     state_field: NodeMemberPointer<(i32, i32)>,
     allocator: NodeAllocator,
