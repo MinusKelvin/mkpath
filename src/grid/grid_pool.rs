@@ -4,6 +4,7 @@ use std::ptr::NonNull;
 use crate::node::{Node, NodeAllocator, NodeMemberPointer, NodeRef};
 
 use super::grid::Grid;
+use super::GridStateMapper;
 
 pub struct GridPool {
     state_map: Grid<Cell<(u64, *mut Node)>>,
@@ -60,14 +61,14 @@ impl GridPool {
 
     #[track_caller]
     #[inline(always)]
-    pub fn generate(&self, x: i32, y: i32) -> NodeRef {
-        let _ = self.state_map[(x, y)];
-        unsafe { self.generate_unchecked(x, y) }
+    pub fn generate(&self, state: (i32, i32)) -> NodeRef {
+        let _ = self.state_map[state];
+        unsafe { self.generate_unchecked(state) }
     }
 
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
-    pub unsafe fn generate_unchecked(&self, x: i32, y: i32) -> NodeRef {
+    pub unsafe fn generate_unchecked(&self, (x, y): (i32, i32)) -> NodeRef {
         let slot = unsafe { self.state_map.get_unchecked(x, y) };
         let (num, ptr) = slot.get();
         if num == self.search_number {
@@ -81,5 +82,23 @@ impl GridPool {
             slot.set((self.search_number, ptr.raw().as_ptr()));
             ptr
         }
+    }
+}
+
+unsafe impl GridStateMapper for GridPool {
+    fn width(&self) -> i32 {
+        self.width()
+    }
+
+    fn height(&self) -> i32 {
+        self.height()
+    }
+
+    fn state_member(&self) -> NodeMemberPointer<(i32, i32)> {
+        self.state_member()
+    }
+
+    unsafe fn generate_unchecked(&self, state: (i32, i32)) -> NodeRef {
+        self.generate_unchecked(state)
     }
 }

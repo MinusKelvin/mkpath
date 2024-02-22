@@ -1,7 +1,8 @@
 use std::f64::consts::SQRT_2;
 use std::path::PathBuf;
 
-use mkpath::grid::{JpsExpander, GridPool};
+use mkpath::general::HashPool;
+use mkpath::grid::JpsExpander;
 use mkpath::node::NodeBuilder;
 use mkpath::pqueue::PriorityQueueFactory;
 use structopt::StructOpt;
@@ -25,7 +26,7 @@ fn main() {
     let f = builder.add_field(f64::INFINITY);
     let mut open_list_factory = PriorityQueueFactory::new(&mut builder);
 
-    let mut pool = GridPool::new(builder.build(), state, map.width(), map.height());
+    let mut pool = HashPool::new(builder.build(), state);
     let map = map.into();
 
     for problem in &scen.instances {
@@ -36,14 +37,14 @@ fn main() {
         let mut edges = vec![];
 
         // start node
-        let start = pool.generate(problem.start.0, problem.start.1);
+        let start = pool.generate(problem.start);
         start.set(g, 0.0);
         start.set(h, octile(problem.start, problem.target));
         start.set(f, start.get(g) + start.get(h));
         open_list.push(start);
 
         // target node
-        let target = pool.generate(problem.target.0, problem.target.1);
+        let target = pool.generate(problem.target);
 
         while let Some(node) = open_list.pop() {
             if node.same_ptr(target) {

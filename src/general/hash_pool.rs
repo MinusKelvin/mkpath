@@ -1,7 +1,8 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::ptr::NonNull;
+
+use ahash::AHashMap;
 
 use crate::node::{Node, NodeAllocator, NodeMemberPointer, NodeRef};
 
@@ -10,7 +11,7 @@ pub struct HashPool<S: Copy> {
     allocator: NodeAllocator,
     // We use RefCell instead of UnsafeCell since the Hash implementation for S could
     // theoretically reentrantly call HashPool::generate, which would cause UB.
-    map: RefCell<HashMap<S, NonNull<Node>>>,
+    map: RefCell<AHashMap<S, NonNull<Node>>>,
 }
 
 impl<S: Copy + Hash + Eq + 'static> HashPool<S> {
@@ -20,8 +21,12 @@ impl<S: Copy + Hash + Eq + 'static> HashPool<S> {
         HashPool {
             state_field,
             allocator,
-            map: RefCell::new(HashMap::new()),
+            map: RefCell::new(AHashMap::new()),
         }
+    }
+
+    pub fn state_member(&self) -> NodeMemberPointer<S> {
+        self.state_field
     }
 
     pub fn reset(&mut self) {

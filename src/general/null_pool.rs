@@ -15,6 +15,10 @@ impl<S: Copy + 'static> NullPool<S> {
         }
     }
 
+    pub fn state_member(&self) -> NodeMemberPointer<S> {
+        self.state_field
+    }
+
     pub fn reset(&mut self) {
         self.allocator.reset();
     }

@@ -35,14 +35,14 @@ fn main() {
         let mut edges = vec![];
 
         // start node
-        let start = pool.generate(problem.start.0, problem.start.1);
+        let start = pool.generate(problem.start);
         start.set(g, 0.0);
         start.set(h, octile(problem.start, problem.target));
         start.set(f, start.get(g) + start.get(h));
         open_list.push(start);
 
         // target node
-        let target = pool.generate(problem.target.0, problem.target.1);
+        let target = pool.generate(problem.target);
 
         while let Some(node) = open_list.pop() {
             if node.same_ptr(target) {

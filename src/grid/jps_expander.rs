@@ -2,7 +2,7 @@ use std::f64::consts::SQRT_2;
 
 use crate::node::NodeRef;
 
-use super::{BitGrid, GridPool};
+use super::{BitGrid, GridStateMapper};
 
 pub struct JpsGrid {
     map: BitGrid,
@@ -21,9 +21,9 @@ impl From<BitGrid> for JpsGrid {
     }
 }
 
-pub struct JpsExpander<'a> {
+pub struct JpsExpander<'a, P> {
     map: &'a JpsGrid,
-    node_pool: &'a GridPool,
+    node_pool: &'a P,
     target: (i32, i32),
 }
 
@@ -38,8 +38,8 @@ enum Direction {
     NorthEast,
 }
 
-impl<'a> JpsExpander<'a> {
-    pub fn new(map: &'a JpsGrid, node_pool: &'a GridPool, target: (i32, i32)) -> Self {
+impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
+    pub fn new(map: &'a JpsGrid, node_pool: &'a P, target: (i32, i32)) -> Self {
         assert!(
             node_pool.width() >= map.map.width(),
             "node pool must be wide enough for the map"
@@ -259,7 +259,7 @@ impl<'a> JpsExpander<'a> {
         }
         if successor {
             edges.push((
-                self.node_pool.generate_unchecked(x, new_y),
+                self.node_pool.generate_unchecked((x, new_y)),
                 cost + (y - new_y) as f64,
             ));
         }
@@ -273,7 +273,7 @@ impl<'a> JpsExpander<'a> {
         }
         if successor {
             edges.push((
-                self.node_pool.generate_unchecked(new_x, y),
+                self.node_pool.generate_unchecked((new_x, y)),
                 cost + (x - new_x) as f64,
             ));
         }
@@ -287,7 +287,7 @@ impl<'a> JpsExpander<'a> {
         }
         if successor {
             edges.push((
-                self.node_pool.generate_unchecked(x, new_y),
+                self.node_pool.generate_unchecked((x, new_y)),
                 cost + (new_y - y) as f64,
             ));
         }
@@ -301,7 +301,7 @@ impl<'a> JpsExpander<'a> {
         }
         if successor {
             edges.push((
-                self.node_pool.generate_unchecked(new_x, y),
+                self.node_pool.generate_unchecked((new_x, y)),
                 cost + (new_x - x) as f64,
             ));
         }
@@ -382,7 +382,7 @@ impl<'a> JpsExpander<'a> {
             cost += SQRT_2;
 
             if (x, y) == self.target {
-                edges.push((self.node_pool.generate_unchecked(x, y), cost));
+                edges.push((self.node_pool.generate_unchecked((x, y)), cost));
                 break;
             }
 
