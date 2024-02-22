@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
 use mkpath::grid::{BitGridExpander, GridPool};
-use mkpath::node::NodeBuilder;
-use mkpath::pqueue::PriorityQueueFactory;
+use mkpath::{NodeBuilder, PriorityQueueFactory};
 use structopt::StructOpt;
 
 mod movingai;

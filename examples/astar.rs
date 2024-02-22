@@ -2,8 +2,7 @@ use std::f64::consts::SQRT_2;
 use std::path::PathBuf;
 
 use mkpath::grid::{BitGridExpander, GridPool};
-use mkpath::node::NodeBuilder;
-use mkpath::pqueue::PriorityQueueFactory;
+use mkpath::{NodeBuilder, PriorityQueueFactory};
 use structopt::StructOpt;
 
 mod movingai;

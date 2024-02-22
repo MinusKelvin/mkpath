@@ -1,10 +1,8 @@
 use std::f64::consts::SQRT_2;
 use std::path::PathBuf;
 
-use mkpath::general::HashPool;
 use mkpath::grid::JpsExpander;
-use mkpath::node::NodeBuilder;
-use mkpath::pqueue::PriorityQueueFactory;
+use mkpath::{HashPool, NodeBuilder, PriorityQueueFactory};
 use structopt::StructOpt;
 
 mod movingai;

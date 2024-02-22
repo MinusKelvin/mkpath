@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::ptr::NonNull;
 
-use crate::node::{Node, NodeAllocator, NodeMemberPointer, NodeRef};
+use mkpath_core::{Node, NodeAllocator, NodeMemberPointer, NodeRef};
 
 use super::grid::Grid;
 use super::GridStateMapper;

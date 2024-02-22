@@ -1,6 +1,6 @@
 use std::f64::consts::SQRT_2;
 
-use crate::node::NodeRef;
+use mkpath_core::NodeRef;
 
 use super::{BitGrid, GridStateMapper};
 

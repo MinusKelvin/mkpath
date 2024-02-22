@@ -4,10 +4,7 @@ mod grid;
 mod grid_pool;
 mod jps_expander;
 
-use crate::general::HashPool;
-use crate::general::NullPool;
-use crate::node::NodeMemberPointer;
-use crate::node::NodeRef;
+use mkpath_core::{HashPool, NodeMemberPointer, NodeRef, NullPool};
 
 pub use self::bitgrid::*;
 pub use self::bitgrid_expander::*;
