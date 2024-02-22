@@ -86,7 +86,11 @@ pub fn read_scenario(scen_path: &Path) -> Result<Scenario> {
     })
 }
 
-fn locate_map(map_path: &str, _scen_path: &Path) -> Result<PathBuf> {
+fn locate_map(map_path: &str, scen_path: &Path) -> Result<PathBuf> {
+    let location_1 = scen_path.parent().unwrap().join(map_path);
+    if location_1.try_exists()? {
+        return Ok(location_1)
+    }
     Ok(Path::new(map_path).to_path_buf())
 }
 
