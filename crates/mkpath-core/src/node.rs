@@ -65,12 +65,17 @@ impl LayoutId {
     }
 }
 
+impl Default for NodeBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NodeBuilder {
     pub fn new() -> NodeBuilder {
         let layout_id = LayoutId::new();
         let layout = Layout::new::<NodeHeader>();
-        let mut default = vec![];
-        default.resize(layout.size(), 0);
+        let mut default = vec![0; layout.size()];
         unsafe {
             // We use `write_unaligned` here because the vector holding the default value has no
             // alignment guarantees.
@@ -133,7 +138,7 @@ impl NodeAllocator {
         self.arena.reset();
     }
 
-    pub fn generate_node<'a>(&'a self) -> NodeRef<'a> {
+    pub fn generate_node(&self) -> NodeRef<'_> {
         let ptr = self.arena.alloc_layout(self.layout);
         unsafe {
             // SAFETY: We have the invariant that `self.default` is valid bytes for initializing a

@@ -54,7 +54,9 @@ pub fn read_scenario(scen_path: &Path) -> Result<Scenario> {
 
         let optimal = tokens
             .next()
-            .ok_or_else(|| Error::other(format!("problem instance missing field optimal length")))?
+            .ok_or_else(|| {
+                Error::other("problem instance missing field optimal length".to_string())
+            })?
             .parse()
             .map_err(Error::other)?;
 
@@ -89,7 +91,7 @@ pub fn read_scenario(scen_path: &Path) -> Result<Scenario> {
 fn locate_map(map_path: &str, scen_path: &Path) -> Result<PathBuf> {
     let location_1 = scen_path.parent().unwrap().join(map_path);
     if location_1.try_exists()? {
-        return Ok(location_1)
+        return Ok(location_1);
     }
     Ok(Path::new(map_path).to_path_buf())
 }

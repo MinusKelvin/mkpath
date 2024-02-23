@@ -102,7 +102,7 @@ impl BitGrid {
         let raw_bits = u64::from_le_bytes(unsafe {
             self.bits.get_unchecked(byte-7..byte + 1).try_into().unwrap()
         });
-        raw_bits << 7 - bit
+        raw_bits << (7 - bit)
     }
 
     #[track_caller]
@@ -127,7 +127,7 @@ impl BitGrid {
     fn index(&self, x: i32, y: i32) -> (usize, usize) {
         let padded_y = (y + 1) as usize;
         let padded_x = (x + 1) as usize;
-        let bit = padded_x + padded_y * self.padded_width as usize;
+        let bit = padded_x + padded_y * self.padded_width;
         (bit / 8 + 8, bit % 8)
     }
 }

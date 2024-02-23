@@ -79,22 +79,20 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
                 } else {
                     Some(Direction::South)
                 }
-            } else {
-                if dx < 0 {
-                    if dy < 0 {
-                        Some(Direction::NorthWest)
-                    } else {
-                        Some(Direction::SouthWest)
-                    }
-                } else if dx > 0 {
-                    if dy < 0 {
-                        Some(Direction::NorthEast)
-                    } else {
-                        Some(Direction::SouthEast)
-                    }
+            } else if dx < 0 {
+                if dy < 0 {
+                    Some(Direction::NorthWest)
                 } else {
-                    None
+                    Some(Direction::SouthWest)
                 }
+            } else if dx > 0 {
+                if dy < 0 {
+                    Some(Direction::NorthEast)
+                } else {
+                    Some(Direction::SouthEast)
+                }
+            } else {
+                None
             }
         });
 
@@ -414,7 +412,7 @@ unsafe fn jump_left(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
 
         if stops != 0 {
             let dist = stops.leading_zeros() as i32;
-            return (x - dist, row & (1 << 63 - dist) != 0);
+            return (x - dist, row & (1 << (63 - dist)) != 0);
         }
 
         x -= 56;
@@ -429,7 +427,7 @@ unsafe fn jump_right(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
 
         let above_turning = !row_above << 1 & row_above;
         let below_turning = !row_below << 1 & row_below;
-        let stops = (above_turning | below_turning | !row) & (1 << 57) - 1;
+        let stops = (above_turning | below_turning | !row) & ((1 << 57) - 1);
 
         if stops != 0 {
             let dist = stops.trailing_zeros() as i32;

@@ -9,7 +9,12 @@ use crate::{Node, NodeAllocator, NodeBuilder, NodeMemberPointer, NodeRef};
 pub struct ComplexStatePool<S> {
     allocator: NodeAllocator,
     state_field: NodeMemberPointer<usize>,
-    data: RefCell<(AHashMap<S, NonNull<Node>>, Vec<S>)>,
+    data: RefCell<Data<S>>,
+}
+
+struct Data<S> {
+    map: AHashMap<S, NonNull<Node>>,
+    states: Vec<S>,
 }
 
 impl<S: Hash + Eq + Clone> ComplexStatePool<S> {
@@ -18,26 +23,29 @@ impl<S: Hash + Eq + Clone> ComplexStatePool<S> {
         ComplexStatePool {
             allocator: builder.build(),
             state_field,
-            data: RefCell::new((AHashMap::new(), vec![])),
+            data: RefCell::new(Data {
+                map: AHashMap::new(),
+                states: vec![],
+            }),
         }
     }
 
     pub fn get_state(&self, node: NodeRef) -> Ref<S> {
         let index = node.get(self.state_field);
-        Ref::map(self.data.borrow(), |(_, states)| &states[index])
+        Ref::map(self.data.borrow(), |data| &data.states[index])
     }
 
     pub fn reset(&mut self) {
-        let (map, states) = self.data.get_mut();
-        map.clear();
-        states.clear();
+        let data = self.data.get_mut();
+        data.map.clear();
+        data.states.clear();
         self.allocator.reset();
     }
 
     pub fn generate(&self, state: S) -> NodeRef {
         unsafe {
-            let mut borrow = self.data.borrow_mut();
-            let (map, states) = &mut *borrow;
+            let mut data = self.data.borrow_mut();
+            let Data { map, states } = &mut *data;
             NodeRef::from_raw(*map.entry(state).or_insert_with_key(|state| {
                 let index = states.len();
                 states.push(state.clone());
