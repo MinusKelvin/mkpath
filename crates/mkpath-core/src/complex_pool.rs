@@ -49,9 +49,9 @@ impl<S: Hash + Eq + Clone> ComplexStatePool<S> {
             NodeRef::from_raw(*map.entry(state).or_insert_with_key(|state| {
                 let index = states.len();
                 states.push(state.clone());
-                let node = self.allocator.generate_node();
+                let node = self.allocator.new_node();
                 node.set(self.state_field, index);
-                node.raw()
+                node.into_raw()
             }))
         }
     }

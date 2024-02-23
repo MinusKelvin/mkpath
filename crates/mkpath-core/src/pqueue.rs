@@ -2,6 +2,7 @@ use std::cmp::Reverse;
 
 use crate::node::*;
 
+/// Factory for creating [`PriorityQueue`]s for a node layout.
 pub struct PriorityQueueFactory {
     index: NodeMemberPointer<usize>,
 }
@@ -49,7 +50,7 @@ impl PriorityQueueFactory {
 impl<'a, C: FieldComparator> PriorityQueue<'a, C> {
     pub fn push(&mut self, node: NodeRef<'a>) {
         let index = node.get(self.index);
-        if index >= self.heap.len() || !self.heap[index].same_ptr(node) {
+        if index >= self.heap.len() || !self.heap[index].ptr_eq(node) {
             self.heap.push(node);
             unsafe {
                 self.sift_up(node, self.heap.len() - 1);

@@ -82,11 +82,11 @@ impl GridPool {
             debug_assert!(!ptr.is_null());
             unsafe { NodeRef::from_raw(NonNull::new_unchecked(ptr)) }
         } else {
-            let ptr = self.allocator.generate_node();
+            let ptr = self.allocator.new_node();
             unsafe {
                 ptr.set_unchecked(self.state_field, (x, y));
             }
-            slot.set((self.search_number, ptr.raw().as_ptr()));
+            slot.set((self.search_number, ptr.into_raw().as_ptr()));
             ptr
         }
     }

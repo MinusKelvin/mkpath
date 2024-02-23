@@ -1,3 +1,8 @@
+#![warn(missing_docs)]
+//! Core types and utilities for `mkpath`.
+//!
+//! This crate primarily provides the interface for working with nodes.
+
 mod node;
 mod pqueue;
 mod hash_pool;

@@ -7,21 +7,26 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use bumpalo::Bump;
 
+/// Builder for nodes.
 pub struct NodeBuilder {
     layout_id: LayoutId,
     layout: Layout,
     default: Vec<u8>,
 }
 
+/// Reference to a node.
+///
+/// This is basically the same as a `&'a Node`, but invariant in `'a`.
 #[derive(Clone, Copy)]
 pub struct NodeRef<'a> {
     ptr: NonNull<Node>,
     _marker: PhantomData<Cell<&'a ()>>,
 }
 
-/// Pointee type for pointers to nodes.
+/// Opaque type for raw pointers to nodes to point at.
 pub enum Node {}
 
+/// Identifier for a node layout.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LayoutId(u64);
 
@@ -31,13 +36,21 @@ struct NodeHeader {
     parent: Option<NonNull<Node>>,
 }
 
-#[derive(Clone, Copy)]
-pub struct NodeMemberPointer<T: Copy> {
+pub struct NodeMemberPointer<T> {
     layout_id: LayoutId,
     offset: usize,
     _marker: PhantomData<T>,
 }
 
+impl<T> Clone for NodeMemberPointer<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for NodeMemberPointer<T> {}
+
+/// Allocator for nodes.
 pub struct NodeAllocator {
     layout_id: LayoutId,
     default: Box<[u8]>,
@@ -138,7 +151,8 @@ impl NodeAllocator {
         self.arena.reset();
     }
 
-    pub fn generate_node(&self) -> NodeRef<'_> {
+    /// Allocates a new node with the default value and returns a `NodeRef` to it.
+    pub fn new_node(&self) -> NodeRef {
         let ptr = self.arena.alloc_layout(self.layout);
         unsafe {
             // SAFETY: We have the invariant that `self.default` is valid bytes for initializing a
@@ -157,29 +171,39 @@ impl NodeAllocator {
 }
 
 impl<'a> NodeRef<'a> {
+    /// Gets the specified member.
+    ///
+    /// # Panics
+    /// Panics if the member pointer is incompatible with `self`.
     #[track_caller]
     #[inline(always)]
-    pub fn get<T: Copy + 'static>(self, f: NodeMemberPointer<T>) -> T {
-        self.check_layout(f.layout_id);
+    pub fn get<T: Copy + 'static>(self, member: NodeMemberPointer<T>) -> T {
+        self.check_layout(member.layout_id);
         // SAFETY: We have checked that the member pointer is for the layout `self` has.
-        unsafe { self.get_unchecked(f) }
+        unsafe { self.get_unchecked(member) }
     }
 
+    /// Sets the specified member.
+    ///
+    /// # Panics
+    /// Panics if the member pointer is incompatible with `self`.
     #[track_caller]
     #[inline(always)]
-    pub fn set<T: Copy + 'static>(self, f: NodeMemberPointer<T>, value: T) {
-        self.check_layout(f.layout_id);
+    pub fn set<T: Copy + 'static>(self, member: NodeMemberPointer<T>, value: T) {
+        self.check_layout(member.layout_id);
         // SAFETY: We have checked that the member pointer is for the layout `self` has.
-        unsafe { self.set_unchecked(f, value) }
+        unsafe { self.set_unchecked(member, value) }
     }
 
+    /// Gets the layout id of self.
     #[inline(always)]
     pub fn layout_id(self) -> LayoutId {
-        // SAFETY: All NodeRefs start with a `NodeHeader` struct, so the resulting reference refers
+        // SAFETY: All nodes start with a `NodeHeader` struct, so the resulting reference refers
         // to a valid `NodeHeader`.
         unsafe { &*self.ptr.as_ptr().cast::<NodeHeader>() }.layout_id
     }
 
+    /// Gets the parent of `self`.
     #[inline(always)]
     pub fn get_parent(self) -> Option<NodeRef<'a>> {
         unsafe { &*self.ptr.as_ptr().cast::<NodeHeader>() }
@@ -190,12 +214,16 @@ impl<'a> NodeRef<'a> {
             })
     }
 
+    /// Sets the parent of `self`.
     #[inline(always)]
     pub fn set_parent(self, parent: Option<NodeRef<'a>>) {
+        // SAFETY: All nodes start with a `NodeHeader` struct, so the resulting reference refers
+        // to a valid `NodeHeader`. The reference is also short-lived, as are all references to the
+        // contents of node memory, and so is not aliased by any other references.
         unsafe { &mut *self.ptr.as_ptr().cast::<NodeHeader>() }.parent = parent.map(|ptr| ptr.ptr);
     }
 
-    /// Gets the specified field without compatibility checking.
+    /// Gets the specified member without compatibility checking.
     ///
     /// # Safety
     /// The caller must ensure that the `NodeMemberPointer` has the same layout id as `self`.
@@ -206,10 +234,17 @@ impl<'a> NodeRef<'a> {
         self.check_layout(f.layout_id);
         // SAFETY: Since `f` is for the layout of this node, there exists an object of type T at
         //         the specified offset from this node's pointer.
-        unsafe { self.ptr.as_ptr().cast::<u8>().add(f.offset).cast::<T>().read() }
+        unsafe {
+            self.ptr
+                .as_ptr()
+                .cast::<u8>()
+                .add(f.offset)
+                .cast::<T>()
+                .read()
+        }
     }
 
-    /// Sets the specified field without compatibility checking.
+    /// Sets the specified member without compatibility checking.
     ///
     /// # Safety
     /// The caller must ensure that the `NodeMemberPointer` has the same layout id as `self`.
@@ -221,23 +256,32 @@ impl<'a> NodeRef<'a> {
         // We do not need to drop the existing object because `T: Copy`.
         // SAFETY: Since `f` is for the layout of this node, there exists an object of type T at
         //         the specified offset from this node's pointer.
-        unsafe { self.ptr.as_ptr().cast::<u8>().add(f.offset).cast::<T>().write(value) }
+        unsafe {
+            self.ptr
+                .as_ptr()
+                .cast::<u8>()
+                .add(f.offset)
+                .cast::<T>()
+                .write(value)
+        }
     }
 
+    /// Returns `true` if the two `NodeRef`s point at the same node.
     #[inline(always)]
-    pub fn same_ptr(self, other: NodeRef) -> bool {
+    pub fn ptr_eq(self, other: NodeRef) -> bool {
         self.ptr == other.ptr
     }
 
+    /// Converts this `NodeRef` into a raw pointer.
     #[inline(always)]
-    pub fn raw(self) -> NonNull<Node> {
+    pub fn into_raw(self) -> NonNull<Node> {
         self.ptr
     }
 
     /// Constructs a `NodeRef` from a raw pointer.
     ///
     /// # Safety
-    /// The pointer must have been previously returned by a call to `NodeRef::raw`, and the
+    /// The pointer must have been previously returned by a call to `NodeRef::into_raw`, and the
     /// underlying `NodeRef` must not have been freed. The caller should also be careful that the
     /// lifetime of the returned `NodeRef` does not exceed the actual lifetime of the data.
     #[inline(always)]

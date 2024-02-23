@@ -45,7 +45,7 @@ fn main() {
         let target = pool.generate(problem.target);
 
         while let Some(node) = open_list.pop() {
-            if node.same_ptr(target) {
+            if node.ptr_eq(target) {
                 break;
             }
 

@@ -24,7 +24,7 @@ impl<S: Copy + 'static> NullPool<S> {
     }
 
     pub fn generate(&self, state: S) -> NodeRef {
-        let node = self.allocator.generate_node();
+        let node = self.allocator.new_node();
         node.set(self.state_field, state);
         node
     }

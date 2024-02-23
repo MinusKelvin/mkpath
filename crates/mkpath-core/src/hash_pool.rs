@@ -6,7 +6,7 @@ use ahash::AHashMap;
 
 use crate::node::{Node, NodeAllocator, NodeMemberPointer, NodeRef};
 
-pub struct HashPool<S: Copy> {
+pub struct HashPool<S> {
     state_field: NodeMemberPointer<S>,
     allocator: NodeAllocator,
     // We use RefCell instead of UnsafeCell since the Hash implementation for S could
@@ -40,9 +40,9 @@ impl<S: Copy + Hash + Eq + 'static> HashPool<S> {
     pub fn generate(&self, state: S) -> NodeRef {
         unsafe {
             NodeRef::from_raw(*self.map.borrow_mut().entry(state).or_insert_with(|| {
-                let node = self.allocator.generate_node();
+                let node = self.allocator.new_node();
                 node.set(self.state_field, state);
-                node.raw()
+                node.into_raw()
             }))
         }
     }
