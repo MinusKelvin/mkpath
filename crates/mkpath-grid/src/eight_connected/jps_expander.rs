@@ -2,7 +2,7 @@ use std::f64::consts::SQRT_2;
 
 use mkpath_core::NodeRef;
 
-use super::{BitGrid, GridStateMapper};
+use crate::{BitGrid, GridStateMapper};
 
 pub struct JpsGrid {
     map: BitGrid,

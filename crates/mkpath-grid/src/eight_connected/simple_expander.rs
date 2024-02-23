@@ -2,14 +2,14 @@ use std::f64::consts::SQRT_2;
 
 use mkpath_core::NodeRef;
 
-use super::{BitGrid, GridStateMapper};
+use crate::{BitGrid, GridStateMapper};
 
-pub struct BitGridExpander<'a, P> {
+pub struct SimpleExpander<'a, P> {
     map: &'a BitGrid,
     node_pool: &'a P,
 }
 
-impl<'a, P: GridStateMapper> BitGridExpander<'a, P> {
+impl<'a, P: GridStateMapper> SimpleExpander<'a, P> {
     pub fn new(map: &'a BitGrid, node_pool: &'a P) -> Self {
         assert!(
             node_pool.width() >= map.width(),
@@ -20,7 +20,7 @@ impl<'a, P: GridStateMapper> BitGridExpander<'a, P> {
             "node pool must be tall enough for the map"
         );
 
-        BitGridExpander { map, node_pool }
+        SimpleExpander { map, node_pool }
     }
 
     pub fn expand(&mut self, node: NodeRef, edges: &mut Vec<(NodeRef<'a>, f64)>) {

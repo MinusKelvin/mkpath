@@ -1,7 +1,7 @@
 use std::f64::consts::SQRT_2;
 use std::path::PathBuf;
 
-use mkpath::grid::{BitGridExpander, GridPool};
+use mkpath::grid::{eight_connected, GridPool};
 use mkpath::{NodeBuilder, PriorityQueueFactory};
 use structopt::StructOpt;
 
@@ -30,7 +30,7 @@ fn main() {
         pool.reset();
 
         let mut open_list = open_list_factory.new_queue((f, h));
-        let mut expander = BitGridExpander::new(&map, &pool);
+        let mut expander = eight_connected::SimpleExpander::new(&map, &pool);
         let mut edges = vec![];
 
         // start node

@@ -1,7 +1,7 @@
 use std::f64::consts::SQRT_2;
 use std::path::PathBuf;
 
-use mkpath::grid::JpsExpander;
+use mkpath::grid::eight_connected;
 use mkpath::{HashPool, NodeBuilder, PriorityQueueFactory};
 use structopt::StructOpt;
 
@@ -31,7 +31,7 @@ fn main() {
         pool.reset();
 
         let mut open_list = open_list_factory.new_queue((f, h));
-        let mut expander = JpsExpander::new(&map, &pool, problem.target);
+        let mut expander = eight_connected::JpsExpander::new(&map, &pool, problem.target);
         let mut edges = vec![];
 
         // start node
