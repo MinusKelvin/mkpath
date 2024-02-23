@@ -55,4 +55,12 @@ impl<S: Hash + Eq + Clone> ComplexStatePool<S> {
             }))
         }
     }
+
+    pub fn get(&self, state: &S) -> Option<NodeRef> {
+        self.data
+            .borrow()
+            .map
+            .get(state)
+            .map(|&ptr| unsafe { NodeRef::from_raw(ptr) })
+    }
 }

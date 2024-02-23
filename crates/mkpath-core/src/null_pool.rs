@@ -28,4 +28,8 @@ impl<S: Copy + 'static> NullPool<S> {
         node.set(self.state_field, state);
         node
     }
+
+    pub fn get(&self, _state: &S) -> Option<NodeRef> {
+        None
+    }
 }

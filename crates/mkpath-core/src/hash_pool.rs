@@ -17,7 +17,10 @@ pub struct HashPool<S: Copy> {
 impl<S: Copy + Hash + Eq + 'static> HashPool<S> {
     #[track_caller]
     pub fn new(allocator: NodeAllocator, state_field: NodeMemberPointer<S>) -> Self {
-        assert!(allocator.layout_id() == state_field.layout_id(), "mismatched layouts");
+        assert!(
+            allocator.layout_id() == state_field.layout_id(),
+            "mismatched layouts"
+        );
         HashPool {
             state_field,
             allocator,
@@ -42,5 +45,12 @@ impl<S: Copy + Hash + Eq + 'static> HashPool<S> {
                 node.raw()
             }))
         }
+    }
+
+    pub fn get(&self, state: &S) -> Option<NodeRef> {
+        self.map
+            .borrow()
+            .get(state)
+            .map(|&ptr| unsafe { NodeRef::from_raw(ptr) })
     }
 }

@@ -66,6 +66,13 @@ impl GridPool {
         unsafe { self.generate_unchecked(state) }
     }
 
+    #[track_caller]
+    #[inline(always)]
+    pub fn get(&self, state: (i32, i32)) -> Option<NodeRef> {
+        let _ = self.state_map[state];
+        unsafe { self.get_unchecked(state) }
+    }
+
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
     pub unsafe fn generate_unchecked(&self, (x, y): (i32, i32)) -> NodeRef {
@@ -81,6 +88,18 @@ impl GridPool {
             }
             slot.set((self.search_number, ptr.raw().as_ptr()));
             ptr
+        }
+    }
+
+    #[inline(always)]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub unsafe fn get_unchecked(&self, (x, y): (i32, i32)) -> Option<NodeRef> {
+        let slot = unsafe { self.state_map.get_unchecked(x, y) };
+        let (num, ptr) = slot.get();
+        if num == self.search_number {
+            unsafe { Some(NodeRef::from_raw(NonNull::new_unchecked(ptr))) }
+        } else {
+            None
         }
     }
 }
