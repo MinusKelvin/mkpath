@@ -73,6 +73,13 @@ impl GridPool {
         unsafe { self.get_unchecked(state) }
     }
 
+    /// Retrieves the node for the specified state or generates one if it does not exist, without
+    /// performing bounds checks.
+    ///
+    /// # Safety
+    /// The coordinates must be in-bounds of the grid. Specifically:
+    /// - `x` is in `0..self.width()`
+    /// - `y` is in `0..self.height()`
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
     pub unsafe fn generate_unchecked(&self, (x, y): (i32, i32)) -> NodeRef {
@@ -91,6 +98,12 @@ impl GridPool {
         }
     }
 
+    /// Retrieves the node for the specified state if it exists, without performing bounds checks.
+    ///
+    /// # Safety
+    /// The coordinates must be in-bounds of the grid. Specifically:
+    /// - `x` is in `0..self.width()`
+    /// - `y` is in `0..self.height()`
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
     pub unsafe fn get_unchecked(&self, (x, y): (i32, i32)) -> Option<NodeRef> {
@@ -104,7 +117,7 @@ impl GridPool {
     }
 }
 
-unsafe impl GridStateMapper for GridPool {
+impl GridStateMapper for GridPool {
     fn width(&self) -> i32 {
         self.width()
     }

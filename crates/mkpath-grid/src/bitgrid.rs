@@ -1,3 +1,10 @@
+/// 2D grid map represented as a bit array.
+///
+/// We use `false` to represent non-traversable cells and `true` to represent traversable cells.
+///
+/// The grid map is padded with an additional row above and below, as well as an additional column
+/// to the left and right. Attempts to write to these cells will panic, but reads will succeed and
+/// return non-traversable.
 pub struct BitGrid {
     width: i32,
     height: i32,
@@ -18,6 +25,7 @@ impl BitGrid {
         let padded_width = (width + 1) as usize;
         let bits = padded_width
             .checked_mul((height + 2) as usize)
+            // +1 for the bottom-right corner bit
             .and_then(|b| b.checked_add(8))
             .expect("number of bits in grid exceeds usize::MAX");
         // extra padding for u64 reads
@@ -56,6 +64,12 @@ impl BitGrid {
         }
     }
 
+    /// Gets the traversability of a cell without bounds checking.
+    ///
+    /// # Safety
+    /// The coordinates must be in-bounds of the padded grid. Specifically:
+    /// - `x` is in `-1..=self.width()`
+    /// - `y` is in `-1..=self.height()`
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
     pub unsafe fn get_unchecked(&self, x: i32, y: i32) -> bool {
@@ -68,6 +82,12 @@ impl BitGrid {
         }
     }
 
+    /// Sets the traversability of a cell without bounds checking.
+    ///
+    /// # Safety
+    /// The coordinates must be in-bounds of the grid. Specifically:
+    /// - `x` is in `0..self.width()`
+    /// - `y` is in `0..self.height()`
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
     pub unsafe fn set_unchecked(&mut self, x: i32, y: i32, traversable: bool) {
@@ -81,9 +101,23 @@ impl BitGrid {
         }
     }
 
+    /// Gets the traversability of a row of cells to the right without bounds checking.
+    ///
+    /// The traversability of the requested cell is placed in the least significant bit, with the
+    /// traversability of the cell right of it in the second-least significant bit, the cell to the
+    /// right of that in the third least-significant bit, etc.
+    ///
+    /// Depending on the position of the bit for the requested cell within its byte, between 57 and
+    /// 64 cells of information may be returned, with the remaining bits being 0. Additionally, the
+    /// values of bits corresponding to cells outside of the padded grid are unspecified.
+    ///
+    /// # Safety
+    /// The coordinates must be in-bounds of the padded grid. Specifically:
+    /// - `x` is in `-1..=self.width()`
+    /// - `y` is in `-1..=self.height()`
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
-    pub unsafe fn get_row_east(&self, x: i32, y: i32) -> u64 {
+    pub unsafe fn get_row_right(&self, x: i32, y: i32) -> u64 {
         #[cfg(debug_assertions)]
         self.padded_bounds_check(x, y);
         let (byte, bit) = self.index(x, y);
@@ -93,9 +127,23 @@ impl BitGrid {
         raw_bits >> bit
     }
 
+    /// Gets the traversability of a row of cells to the left without bounds checking.
+    ///
+    /// The traversability of the requested cell is placed in the most significant bit, with the
+    /// traversability of the cell right of it in the second-most significant bit, the cell to the
+    /// right of that in the third-most significant bit, etc.
+    ///
+    /// Depending on the position of the bit for the requested cell within its byte, between 57 and
+    /// 64 cells of information may be returned, with the remaining bits being 0. Additionally, the
+    /// values of bits corresponding to cells outside of the padded grid are unspecified.
+    ///
+    /// # Safety
+    /// The coordinates must be in-bounds of the padded grid. Specifically:
+    /// - `x` is in `-1..=self.width()`
+    /// - `y` is in `-1..=self.height()`
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
-    pub unsafe fn get_row_west(&self, x: i32, y: i32) -> u64 {
+    pub unsafe fn get_row_left(&self, x: i32, y: i32) -> u64 {
         #[cfg(debug_assertions)]
         self.padded_bounds_check(x, y);
         let (byte, bit) = self.index(x, y);

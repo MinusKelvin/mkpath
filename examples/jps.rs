@@ -1,7 +1,6 @@
-use std::f64::consts::SQRT_2;
 use std::path::PathBuf;
 
-use mkpath::grid::eight_connected;
+use mkpath::grid::eight_connected::{octile_distance, JpsExpander};
 use mkpath::{HashPool, NodeBuilder, PriorityQueueFactory};
 use structopt::StructOpt;
 
@@ -31,13 +30,13 @@ fn main() {
         pool.reset();
 
         let mut open_list = open_list_factory.new_queue((f, h));
-        let mut expander = eight_connected::JpsExpander::new(&map, &pool, problem.target);
+        let mut expander = JpsExpander::new(&map, &pool, problem.target);
         let mut edges = vec![];
 
         // start node
         let start = pool.generate(problem.start);
         start.set(g, 0.0);
-        start.set(h, octile(problem.start, problem.target));
+        start.set(h, octile_distance(problem.start, problem.target));
         start.set(f, start.get(g) + start.get(h));
         open_list.push(start);
 
@@ -54,7 +53,7 @@ fn main() {
 
             for &(successor, cost) in &edges {
                 if successor.get(h).is_nan() {
-                    successor.set(h, octile(successor.get(state), problem.target))
+                    successor.set(h, octile_distance(successor.get(state), problem.target))
                 }
                 let new_g = node.get(g) + cost;
                 if new_g < successor.get(g) {
@@ -79,12 +78,4 @@ fn main() {
             println!("failed to find path");
         }
     }
-}
-
-fn octile((x1, y1): (i32, i32), (x2, y2): (i32, i32)) -> f64 {
-    let dx = (x1 - x2).abs();
-    let dy = (y1 - y2).abs();
-    let diagonals = dx.min(dy);
-    let orthos = dx.max(dy) - diagonals;
-    orthos as f64 + diagonals as f64 * SQRT_2
 }

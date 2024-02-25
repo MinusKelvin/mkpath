@@ -35,6 +35,12 @@ impl<T> Grid<T> {
         &mut self.cells
     }
 
+    /// Returns a reference to a cell of the grid, without bounds checking.
+    ///
+    /// # Safety
+    /// The coordinates must be in-bounds of the grid. Specifically:
+    /// - `x` is in `0..self.width()`
+    /// - `y` is in `0..self.height()`
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
     pub unsafe fn get_unchecked(&self, x: i32, y: i32) -> &T {
@@ -43,6 +49,12 @@ impl<T> Grid<T> {
         unsafe { self.cells.get_unchecked(self.index(x, y)) }
     }
 
+    /// Returns a mutable reference to a cell of the grid, without bounds checking.
+    ///
+    /// # Safety
+    /// The coordinates must be in-bounds of the grid. Specifically:
+    /// - `x` is in `0..self.width()`
+    /// - `y` is in `0..self.height()`
     #[inline(always)]
     #[cfg_attr(debug_assertions, track_caller)]
     pub unsafe fn get_unchecked_mut(&mut self, x: i32, y: i32) -> &mut T {
