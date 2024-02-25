@@ -9,7 +9,7 @@ impl<T> Grid<T> {
         let w: usize = width.try_into().expect("width must be non-negative");
         let h: usize = height.try_into().expect("height must be non-negative");
         let cells = (0..h)
-            .flat_map(move |x| (0..w).map(move |y| (x as i32, y as i32)))
+            .flat_map(move |y| (0..w).map(move |x| (x as i32, y as i32)))
             .map(|(x, y)| f(x, y))
             .collect();
         Grid {
