@@ -108,149 +108,173 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
 
             match dir {
                 Some(Direction::North) => {
+                    let mut north_verif = y;
                     if n {
-                        self.jump_north(edges, x, y, 0.0);
+                        north_verif = self.jump_north::<0>(edges, x, y, 0.0, 0);
                     }
                     if !sw && w {
-                        self.jump_west(edges, x, y, 0.0);
+                        let west_verif = self.jump_west::<0>(edges, x, y, 0.0, 0);
                         if n && nw {
-                            self.jump_northwest(edges, x, y);
+                            self.jump_northwest(edges, x, y, west_verif, north_verif);
                         }
                     }
                     if !se && e {
-                        self.jump_east(edges, x, y, 0.0);
+                        let east_verif = self.jump_east::<0>(edges, x, y, 0.0, 0);
                         if n && ne {
-                            self.jump_northeast(edges, x, y);
+                            self.jump_northeast(edges, x, y, east_verif, north_verif);
                         }
                     }
                 }
                 Some(Direction::West) => {
+                    let mut west_verif = x;
                     if w {
-                        self.jump_west(edges, x, y, 0.0);
+                        west_verif = self.jump_west::<0>(edges, x, y, 0.0, 0);
                     }
                     if !ne && n {
-                        self.jump_north(edges, x, y, 0.0);
+                        let north_verif = self.jump_north::<0>(edges, x, y, 0.0, 0);
                         if w && nw {
-                            self.jump_northwest(edges, x, y);
+                            self.jump_northwest(edges, x, y, west_verif, north_verif);
                         }
                     }
                     if !se && s {
-                        self.jump_south(edges, x, y, 0.0);
+                        let south_verif = self.jump_south::<0>(edges, x, y, 0.0, 0);
                         if w && sw {
-                            self.jump_southwest(edges, x, y);
+                            self.jump_southwest(edges, x, y, west_verif, south_verif);
                         }
                     }
                 }
                 Some(Direction::South) => {
+                    let mut south_verif = y;
                     if s {
-                        self.jump_south(edges, x, y, 0.0);
+                        south_verif = self.jump_south::<0>(edges, x, y, 0.0, 0);
                     }
                     if !nw && w {
-                        self.jump_west(edges, x, y, 0.0);
+                        let west_verif = self.jump_west::<0>(edges, x, y, 0.0, 0);
                         if s && sw {
-                            self.jump_southwest(edges, x, y);
+                            self.jump_southwest(edges, x, y, west_verif, south_verif);
                         }
                     }
                     if !ne && e {
-                        self.jump_east(edges, x, y, 0.0);
+                        let east_verif = self.jump_east::<0>(edges, x, y, 0.0, 0);
                         if s && se {
-                            self.jump_southeast(edges, x, y);
+                            self.jump_southeast(edges, x, y, east_verif, south_verif);
                         }
                     }
                 }
                 Some(Direction::East) => {
+                    let mut east_verif = x;
                     if e {
-                        self.jump_east(edges, x, y, 0.0);
+                        east_verif = self.jump_east::<0>(edges, x, y, 0.0, 0);
                     }
                     if !nw && n {
-                        self.jump_north(edges, x, y, 0.0);
+                        let north_verif = self.jump_north::<0>(edges, x, y, 0.0, 0);
                         if e && ne {
-                            self.jump_northeast(edges, x, y);
+                            self.jump_northeast(edges, x, y, east_verif, north_verif);
                         }
                     }
                     if !sw && s {
-                        self.jump_south(edges, x, y, 0.0);
+                        let south_verif = self.jump_south::<0>(edges, x, y, 0.0, 0);
                         if e && se {
-                            self.jump_southeast(edges, x, y);
+                            self.jump_southeast(edges, x, y, east_verif, south_verif);
                         }
                     }
                 }
                 Some(Direction::NorthWest) => {
+                    let mut north_verif = y;
+                    let mut west_verif = x;
                     if n {
-                        self.jump_north(edges, x, y, 0.0);
+                        north_verif = self.jump_north::<0>(edges, x, y, 0.0, 0);
                     }
                     if w {
-                        self.jump_west(edges, x, y, 0.0);
+                        west_verif = self.jump_west::<0>(edges, x, y, 0.0, 0);
                     }
                     if n && w && nw {
-                        self.jump_northwest(edges, x, y);
+                        self.jump_northwest(edges, x, y, west_verif, north_verif);
                     }
                 }
                 Some(Direction::SouthWest) => {
+                    let mut south_verif = y;
+                    let mut west_verif = x;
                     if s {
-                        self.jump_south(edges, x, y, 0.0);
+                        south_verif = self.jump_south::<0>(edges, x, y, 0.0, 0);
                     }
                     if w {
-                        self.jump_west(edges, x, y, 0.0);
+                        west_verif = self.jump_west::<0>(edges, x, y, 0.0, 0);
                     }
                     if s && w && sw {
-                        self.jump_southwest(edges, x, y);
+                        self.jump_southwest(edges, x, y, west_verif, south_verif);
                     }
                 }
                 Some(Direction::SouthEast) => {
+                    let mut south_verif = y;
+                    let mut east_verif = x;
                     if s {
-                        self.jump_south(edges, x, y, 0.0);
+                        south_verif = self.jump_south::<0>(edges, x, y, 0.0, 0);
                     }
                     if e {
-                        self.jump_east(edges, x, y, 0.0);
+                        east_verif = self.jump_east::<0>(edges, x, y, 0.0, 0);
                     }
                     if s && e && se {
-                        self.jump_southeast(edges, x, y);
+                        self.jump_southeast(edges, x, y, east_verif, south_verif);
                     }
                 }
                 Some(Direction::NorthEast) => {
+                    let mut north_verif = y;
+                    let mut east_verif = x;
                     if n {
-                        self.jump_north(edges, x, y, 0.0);
+                        north_verif = self.jump_north::<0>(edges, x, y, 0.0, 0);
                     }
                     if e {
-                        self.jump_east(edges, x, y, 0.0);
+                        east_verif = self.jump_east::<0>(edges, x, y, 0.0, 0);
                     }
                     if n && e && ne {
-                        self.jump_northeast(edges, x, y);
+                        self.jump_northeast(edges, x, y, east_verif, north_verif);
                     }
                 }
                 None => {
+                    let mut north_verif = y;
+                    let mut south_verif = y;
+                    let mut east_verif = x;
+                    let mut west_verif = x;
                     if n {
-                        self.jump_north(edges, x, y, 0.0);
+                        north_verif = self.jump_north::<0>(edges, x, y, 0.0, 0);
                     }
                     if w {
-                        self.jump_west(edges, x, y, 0.0);
+                        west_verif = self.jump_west::<0>(edges, x, y, 0.0, 0);
                     }
                     if s {
-                        self.jump_south(edges, x, y, 0.0);
+                        south_verif = self.jump_south::<0>(edges, x, y, 0.0, 0);
                     }
                     if e {
-                        self.jump_east(edges, x, y, 0.0);
+                        east_verif = self.jump_east::<0>(edges, x, y, 0.0, 0);
                     }
                     if n && w && nw {
-                        self.jump_northwest(edges, x, y);
+                        self.jump_northwest(edges, x, y, west_verif, north_verif);
                     }
                     if s && w && sw {
-                        self.jump_southwest(edges, x, y);
+                        self.jump_southwest(edges, x, y, west_verif, south_verif);
                     }
                     if s && e && se {
-                        self.jump_southeast(edges, x, y);
+                        self.jump_southeast(edges, x, y, east_verif, south_verif);
                     }
                     if n && e && ne {
-                        self.jump_northeast(edges, x, y);
+                        self.jump_northeast(edges, x, y, east_verif, north_verif);
                     }
                 }
             }
         }
     }
 
-    unsafe fn jump_north(&self, edges: &mut Vec<(NodeRef<'a>, f64)>, x: i32, y: i32, cost: f64) {
-        let (mut new_y, mut successor) = jump_left(&self.map.tmap, y, x);
+    unsafe fn jump_north<const DY: i32>(
+        &self,
+        edges: &mut Vec<(NodeRef<'a>, f64)>,
+        x: i32,
+        y: i32,
+        cost: f64,
+        verif: i32,
+    ) -> i32 {
+        let (mut new_y, mut successor) = jump_left_verif::<DY>(&self.map.tmap, y, x, verif);
+        let verif = new_y;
         if x == self.target.0 && y > self.target.1 && new_y < self.target.1 {
             successor = true;
             new_y = self.target.1;
@@ -261,10 +285,19 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
                 cost + (y - new_y) as f64,
             ));
         }
+        verif
     }
 
-    unsafe fn jump_west(&self, edges: &mut Vec<(NodeRef<'a>, f64)>, x: i32, y: i32, cost: f64) {
-        let (mut new_x, mut successor) = jump_left(&self.map.map, x, y);
+    unsafe fn jump_west<const DY: i32>(
+        &self,
+        edges: &mut Vec<(NodeRef<'a>, f64)>,
+        x: i32,
+        y: i32,
+        cost: f64,
+        verif: i32,
+    ) -> i32 {
+        let (mut new_x, mut successor) = jump_left_verif::<DY>(&self.map.map, x, y, verif);
+        let verif = new_x;
         if y == self.target.1 && x > self.target.0 && new_x < self.target.0 {
             successor = true;
             new_x = self.target.0;
@@ -275,10 +308,19 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
                 cost + (x - new_x) as f64,
             ));
         }
+        verif
     }
 
-    unsafe fn jump_south(&self, edges: &mut Vec<(NodeRef<'a>, f64)>, x: i32, y: i32, cost: f64) {
-        let (mut new_y, mut successor) = jump_right(&self.map.tmap, y, x);
+    unsafe fn jump_south<const DY: i32>(
+        &self,
+        edges: &mut Vec<(NodeRef<'a>, f64)>,
+        x: i32,
+        y: i32,
+        cost: f64,
+        verif: i32,
+    ) -> i32 {
+        let (mut new_y, mut successor) = jump_right_verif::<DY>(&self.map.tmap, y, x, verif);
+        let verif = new_y;
         if x == self.target.0 && y < self.target.1 && new_y > self.target.1 {
             successor = true;
             new_y = self.target.1;
@@ -289,10 +331,19 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
                 cost + (new_y - y) as f64,
             ));
         }
+        verif
     }
 
-    unsafe fn jump_east(&self, edges: &mut Vec<(NodeRef<'a>, f64)>, x: i32, y: i32, cost: f64) {
-        let (mut new_x, mut successor) = jump_right(&self.map.map, x, y);
+    unsafe fn jump_east<const DY: i32>(
+        &self,
+        edges: &mut Vec<(NodeRef<'a>, f64)>,
+        x: i32,
+        y: i32,
+        cost: f64,
+        verif: i32,
+    ) -> i32 {
+        let (mut new_x, mut successor) = jump_right_verif::<DY>(&self.map.map, x, y, verif);
+        let verif = new_x;
         if y == self.target.1 && x < self.target.0 && new_x > self.target.0 {
             successor = true;
             new_x = self.target.0;
@@ -303,6 +354,7 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
                 cost + (new_x - x) as f64,
             ));
         }
+        verif
     }
 
     unsafe fn jump_northwest(
@@ -310,13 +362,17 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
         edges: &mut Vec<(NodeRef<'a>, f64)>,
         x: i32,
         y: i32,
+        x_verif: i32,
+        y_verif: i32,
     ) {
         self.jump_diag::<-1, -1>(
             edges,
             x,
             y,
-            |this, edges, x, y, cost| this.jump_west(edges, x, y, cost),
-            |this, edges, x, y, cost| this.jump_north(edges, x, y, cost),
+            x_verif,
+            y_verif,
+            |this, edges, x, y, cost, verif| this.jump_west::<-1>(edges, x, y, cost, verif),
+            |this, edges, x, y, cost, verif| this.jump_north::<-1>(edges, x, y, cost, verif),
         )
     }
 
@@ -325,13 +381,17 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
         edges: &mut Vec<(NodeRef<'a>, f64)>,
         x: i32,
         y: i32,
+        x_verif: i32,
+        y_verif: i32,
     ) {
         self.jump_diag::<1, -1>(
             edges,
             x,
             y,
-            |this, edges, x, y, cost| this.jump_east(edges, x, y, cost),
-            |this, edges, x, y, cost| this.jump_north(edges, x, y, cost),
+            x_verif,
+            y_verif,
+            |this, edges, x, y, cost, verif| this.jump_east::<-1>(edges, x, y, cost, verif),
+            |this, edges, x, y, cost, verif| this.jump_north::<1>(edges, x, y, cost, verif),
         )
     }
 
@@ -340,13 +400,17 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
         edges: &mut Vec<(NodeRef<'a>, f64)>,
         x: i32,
         y: i32,
+        x_verif: i32,
+        y_verif: i32,
     ) {
         self.jump_diag::<-1, 1>(
             edges,
             x,
             y,
-            |this, edges, x, y, cost| this.jump_west(edges, x, y, cost),
-            |this, edges, x, y, cost| this.jump_south(edges, x, y, cost),
+            x_verif,
+            y_verif,
+            |this, edges, x, y, cost, verif| this.jump_west::<1>(edges, x, y, cost, verif),
+            |this, edges, x, y, cost, verif| this.jump_south::<-1>(edges, x, y, cost, verif),
         )
     }
 
@@ -355,13 +419,17 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
         edges: &mut Vec<(NodeRef<'a>, f64)>,
         x: i32,
         y: i32,
+        x_verif: i32,
+        y_verif: i32,
     ) {
         self.jump_diag::<1, 1>(
             edges,
             x,
             y,
-            |this, edges, x, y, cost| this.jump_east(edges, x, y, cost),
-            |this, edges, x, y, cost| this.jump_south(edges, x, y, cost),
+            x_verif,
+            y_verif,
+            |this, edges, x, y, cost, verif| this.jump_east::<1>(edges, x, y, cost, verif),
+            |this, edges, x, y, cost, verif| this.jump_south::<1>(edges, x, y, cost, verif),
         )
     }
 
@@ -370,8 +438,10 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
         edges: &mut Vec<(NodeRef<'a>, f64)>,
         mut x: i32,
         mut y: i32,
-        jump_x: impl Fn(&Self, &mut Vec<(NodeRef<'a>, f64)>, i32, i32, f64),
-        jump_y: impl Fn(&Self, &mut Vec<(NodeRef<'a>, f64)>, i32, i32, f64),
+        mut x_verif: i32,
+        mut y_verif: i32,
+        jump_x: impl Fn(&Self, &mut Vec<(NodeRef<'a>, f64)>, i32, i32, f64, i32) -> i32,
+        jump_y: impl Fn(&Self, &mut Vec<(NodeRef<'a>, f64)>, i32, i32, f64, i32) -> i32,
     ) {
         let mut cost = 0.0;
         loop {
@@ -388,10 +458,10 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
             let y_t = self.map.map.get_unchecked(x, y + DY);
             let xy_t = self.map.map.get_unchecked(x + DX, y + DY);
             if x_t {
-                jump_x(self, edges, x, y, cost);
+                x_verif = jump_x(self, edges, x, y, cost, x_verif);
             }
             if y_t {
-                jump_y(self, edges, x, y, cost);
+                y_verif = jump_y(self, edges, x, y, cost, y_verif);
             }
             if !(x_t && y_t && xy_t) {
                 break;
@@ -400,7 +470,27 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
     }
 }
 
-unsafe fn jump_left(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
+#[inline(always)]
+unsafe fn jump_left_verif<const DY: i32>(
+    map: &BitGrid,
+    mut x: i32,
+    y: i32,
+    verif: i32,
+) -> (i32, bool) {
+    while DY != 0 && x >= verif + 56 {
+        let row_adj = map.get_row_west(x, y + DY);
+        let row = map.get_row_west(x, y);
+
+        let adj_turning = !row_adj >> 1 & row_adj;
+        let stops = (adj_turning | !row) & !0x7F;
+
+        if stops != 0 {
+            let dist = stops.leading_zeros() as i32;
+            return (x - dist, row & (1 << (63 - dist)) != 0);
+        }
+
+        x -= 56;
+    }
     loop {
         let row_above = map.get_row_west(x, y - 1);
         let row = map.get_row_west(x, y);
@@ -419,7 +509,27 @@ unsafe fn jump_left(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
     }
 }
 
-unsafe fn jump_right(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
+#[inline(always)]
+unsafe fn jump_right_verif<const DY: i32>(
+    map: &BitGrid,
+    mut x: i32,
+    y: i32,
+    verif: i32,
+) -> (i32, bool) {
+    while DY != 0 && x <= verif - 56 {
+        let row_adj = map.get_row_east(x, y + DY);
+        let row = map.get_row_east(x, y);
+
+        let adj_turning = !row_adj << 1 & row_adj;
+        let stops = (adj_turning | !row) & ((1 << 57) - 1);
+
+        if stops != 0 {
+            let dist = stops.trailing_zeros() as i32;
+            return (x + dist, row & 1 << dist != 0);
+        }
+
+        x += 56;
+    }
     loop {
         let row_above = map.get_row_east(x, y - 1);
         let row = map.get_row_east(x, y);
