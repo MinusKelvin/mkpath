@@ -131,6 +131,7 @@ impl GridStateMapper for GridPool {
     }
 
     unsafe fn generate_unchecked(&self, state: (i32, i32)) -> NodeRef {
-        self.generate_unchecked(state)
+        // SAFETY: Forwarding call to function with identical contract.
+        unsafe { self.generate_unchecked(state) }
     }
 }

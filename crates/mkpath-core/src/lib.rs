@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![deny(unsafe_op_in_unsafe_fn)]
 //! Core types and utilities for `mkpath`.
 //!
 //! This crate primarily provides the interface for working with nodes.
