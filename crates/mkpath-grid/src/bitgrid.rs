@@ -8,7 +8,7 @@
 pub struct BitGrid {
     width: i32,
     height: i32,
-    padded_width: usize,
+    padded_width_bytes: usize,
     bits: Box<[u8]>,
 }
 
@@ -19,13 +19,15 @@ impl BitGrid {
         assert!(height >= 0, "height must be non-negative");
         assert!(width < 2_000_000_000, "width must be < 2000000000");
         assert!(height < 2_000_000_000, "height must be < 2000000000");
-        // height + 2 for a padding row above and a padding row below
-        // width + 1 for padding column to the left, which also functions as a padding column
-        // to the right, except for the last row which requires an extra bit
-        let padded_width = (width + 1) as usize;
-        let bits = padded_width
+        // We pad each row so that there is a multiple of 8 bits in every row, and at least one
+        // padding column between rows. If there is only 1 padding column, then we need to add an
+        // extra bit for the bottom-right corner.
+        let padded_width_bytes = (width / 8 + 1) as usize;
+        let padded_width_bits = padded_width_bytes * 8;
+        let bits = padded_width_bits
+            // height + 2 for a padding row above and a padding row below
             .checked_mul((height + 2) as usize)
-            // +1 for the bottom-right corner bit
+            // +1 for the bottom-right corner bit, then +7 for rounding up to the number of bytes.
             .and_then(|b| b.checked_add(8))
             .expect("number of bits in grid exceeds usize::MAX");
         // extra padding for u64 reads
@@ -33,7 +35,7 @@ impl BitGrid {
         BitGrid {
             width,
             height,
-            padded_width,
+            padded_width_bytes,
             bits: vec![0; bytes].into_boxed_slice(),
         }
     }
@@ -148,7 +150,10 @@ impl BitGrid {
         self.padded_bounds_check(x, y);
         let (byte, bit) = self.index(x, y);
         let raw_bits = u64::from_le_bytes(unsafe {
-            self.bits.get_unchecked(byte-7..byte + 1).try_into().unwrap()
+            self.bits
+                .get_unchecked(byte - 7..byte + 1)
+                .try_into()
+                .unwrap()
         });
         raw_bits << (7 - bit)
     }
@@ -175,7 +180,8 @@ impl BitGrid {
     fn index(&self, x: i32, y: i32) -> (usize, usize) {
         let padded_y = (y + 1) as usize;
         let padded_x = (x + 1) as usize;
-        let bit = padded_x + padded_y * self.padded_width;
-        (bit / 8 + 8, bit % 8)
+        let bit = padded_x % 8;
+        let byte = padded_x / 8 + padded_y * self.padded_width_bytes;
+        (byte + 8, bit)
     }
 }

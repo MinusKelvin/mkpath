@@ -506,7 +506,7 @@ unsafe fn jump_right<const DY: i32>(map: &BitGrid, mut x: i32, y: i32, all_1s: i
         // This loop's logic is very similar to the following loop's logic.
         // DY == 0 disables all_1s-optimized jumps.
         // DY != 0 assumes that the -DY row is 1s as long as x < all_1s, so we don't check it.
-        // This saves a get_row call and 4 bitops, about 5-10% on large maps.
+        // This saves a get_row call and 4 bitops, about 3% on large maps.
         // We stop when the next block could contain a jump point on the -DY side, and switch to
         // normal jumping.
         while DY != 0 && x <= all_1s - 56 {
