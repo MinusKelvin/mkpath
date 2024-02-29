@@ -4,14 +4,14 @@
 mod bitgrid;
 mod grid;
 mod grid_pool;
-
-pub mod eight_connected;
+mod eight_connected;
 
 use mkpath_core::{HashPool, NodeMemberPointer, NodeRef, NullPool};
 
 pub use self::bitgrid::*;
 pub use self::grid::*;
 pub use self::grid_pool::*;
+pub use self::eight_connected::*;
 
 /// Trait for specialized grid-to-node mappers.
 ///

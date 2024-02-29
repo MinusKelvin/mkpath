@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use mkpath::grid::eight_connected::{octile_distance, JpsExpander};
+use mkpath::grid::octile_distance;
+use mkpath::jps::OnlineJpsExpander;
 use mkpath::{HashPool, NodeBuilder, PriorityQueueFactory};
 use structopt::StructOpt;
 
@@ -30,7 +31,7 @@ fn main() {
         pool.reset();
 
         let mut open_list = open_list_factory.new_queue((f, h));
-        let mut expander = JpsExpander::new(&map, &pool, problem.target);
+        let mut expander = OnlineJpsExpander::new(&map, &pool, problem.target);
         let mut edges = vec![];
 
         // start node

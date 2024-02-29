@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use mkpath::grid::GridPool;
 use mkpath::{NodeBuilder, PriorityQueueFactory};
-use mkpath_grid::eight_connected::{octile_distance, SimpleExpander};
+use mkpath_grid::{octile_distance, EightConnectedExpander};
 use structopt::StructOpt;
 
 mod movingai;
@@ -30,7 +30,7 @@ fn main() {
         pool.reset();
 
         let mut open_list = open_list_factory.new_queue((f, h));
-        let mut expander = SimpleExpander::new(&map, &pool);
+        let mut expander = EightConnectedExpander::new(&map, &pool);
         let mut edges = vec![];
 
         // start node
