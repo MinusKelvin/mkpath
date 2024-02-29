@@ -79,6 +79,14 @@ fn reached_direction(from: (i32, i32), to: (i32, i32)) -> Option<Direction> {
     }
 }
 
+fn skipped_past<const D: i32>(start: i32, end: i32, target: i32) -> bool {
+    match D {
+        -1 => start > target && end < target,
+        1 => target > start && target < end,
+        _ => unreachable!()
+    }
+}
+
 trait JumpPointLocator {
     fn map(&self) -> &BitGrid;
 

@@ -2,7 +2,7 @@ use std::f64::consts::SQRT_2;
 
 use mkpath_grid::BitGrid;
 
-use crate::{JpsGrid, JumpPointLocator};
+use crate::{skipped_past, JpsGrid, JumpPointLocator};
 
 pub(crate) struct OnlineJpl<'a> {
     map: &'a JpsGrid,
@@ -37,37 +37,22 @@ impl JumpPointLocator for OnlineJpl<'_> {
         cost: f64,
         all_1s: i32,
     ) -> i32 {
-        match DX {
-            -1 => unsafe {
-                // See jump_y below; the logic is the same except using the x-axis.
-                let (mut new_x, mut successor) = jump_left::<DY>(&self.map.map, x, y, all_1s);
-                let all_1s = new_x;
-                if y == self.target.1 && x > self.target.0 && new_x < self.target.0 {
-                    successor = true;
-                    new_x = self.target.0;
-                }
-                if successor {
-                    found((new_x, y), cost + (x - new_x) as f64);
-                }
-                all_1s
-            },
-            1 => unsafe {
-                // See jump_y below; the logic is the same except using the x-axis.
-                let (mut new_x, mut successor) = jump_right::<DY>(&self.map.map, x, y, all_1s);
-                let all_1s = new_x;
-                if y == self.target.1 && x < self.target.0 && new_x > self.target.0 {
-                    successor = true;
-                    new_x = self.target.0;
-                }
-                if successor {
-                    found((new_x, y), cost + (new_x - x) as f64);
-                }
-                all_1s
-            },
-            _ => {
-                unreachable!()
+        let (mut new_x, mut successor) = unsafe {
+            match DX {
+                -1 => jump_left::<DY>(&self.map.map, x, y, all_1s),
+                1 => jump_right::<DY>(&self.map.map, x, y, all_1s),
+                _ => unreachable!(),
             }
+        };
+        let all_1s = new_x;
+        if y == self.target.1 && skipped_past::<DX>(x, new_x, self.target.0) {
+            successor = true;
+            new_x = self.target.0;
         }
+        if successor {
+            found((new_x, y), cost + (DX * (new_x - x)) as f64);
+        }
+        all_1s
     }
 
     /// Jumps vertically.
@@ -87,42 +72,28 @@ impl JumpPointLocator for OnlineJpl<'_> {
         cost: f64,
         all_1s: i32,
     ) -> i32 {
-        match DY {
-            -1 => unsafe {
-                // The preconditions are upheld by the caller. Note that JpsGrid has the invariant
-                // that tmap is the transpose of map.
-                let (mut new_y, mut successor) = jump_left::<DX>(&self.map.tmap, y, x, all_1s);
-                let all_1s = new_y;
-                if x == self.target.0 && y > self.target.1 && new_y < self.target.1 {
-                    // self.target.1 is strictly between y (in-bounds) and new_y (padded in-bounds),
-                    // so self.target.1 must be in-bounds (it cannot be padded in-bounds).
-                    successor = true;
-                    new_y = self.target.1;
-                }
-                if successor {
-                    // new_y is in-bounds by either the contract of jump_left, or by the conditions
-                    // of the prior if statement.
-                    found((x, new_y), cost + (y - new_y) as f64);
-                }
-                all_1s
-            },
-            1 => unsafe {
-                // The logic here is the same as the case above, just going the other direction.
-                let (mut new_y, mut successor) = jump_right::<DX>(&self.map.tmap, y, x, all_1s);
-                let all_1s = new_y;
-                if x == self.target.0 && y < self.target.1 && new_y > self.target.1 {
-                    successor = true;
-                    new_y = self.target.1;
-                }
-                if successor {
-                    found((x, new_y), cost + (new_y - y) as f64);
-                }
-                all_1s
-            },
-            _ => {
-                unreachable!()
+        let (mut new_y, mut successor) = unsafe {
+            // The preconditions are upheld by the caller. Note that JpsGrid has the invariant
+            // that tmap is the transpose of map.
+            match DY {
+                -1 => jump_left::<DX>(&self.map.tmap, y, x, all_1s),
+                1 => jump_right::<DX>(&self.map.tmap, y, x, all_1s),
+                _ => unreachable!(),
             }
+        };
+        let all_1s = new_y;
+        if x == self.target.0 && skipped_past::<DY>(y, new_y, self.target.1) {
+            // self.target.1 is strictly between y (in-bounds) and new_y (padded in-bounds),
+            // so self.target.1 must be in-bounds (it cannot be padded in-bounds).
+            successor = true;
+            new_y = self.target.1;
         }
+        if successor {
+            // new_y is in-bounds by either the contract of jump_left, or by the conditions
+            // of the prior if statement.
+            found((x, new_y), cost + (DY * (new_y - y)) as f64)
+        }
+        all_1s
     }
 
     /// Jumps diagonally.
