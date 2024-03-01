@@ -39,14 +39,14 @@ impl JumpDistDatabase {
                     || nb & (West | SouthWest | South) == West | SouthWest
                 {
                     // The location to the west is a jump point; distance 1, successor.
-                    // DB values are encoded (distance - 1) << 1 | successor
-                    db[(x, y)][West as usize] = 1;
+                    // DB values are encoded distance << 1 | successor
+                    db[(x, y)][West as usize] = 3;
                 } else if nb.contains(West) {
                     // The location to the west is not a jump point, but we can jump through it.
                     // Increase the distance by 1 and keep the successor flag.
                     db[(x, y)][West as usize] = db[(x - 1, y)][West as usize] + 2;
                 } else {
-                    // If we can't go west, then the jump distance is 1 and there is no successor.
+                    // If we can't go west, then the jump distance is 0 and there is no successor.
                     // This is represented by db value 0, which is the default, so we don't need
                     // to do anything.
                 }
@@ -56,7 +56,7 @@ impl JumpDistDatabase {
                 if nb & (North | NorthWest | West) == North | NorthWest
                     || nb & (North | NorthEast | East) == North | NorthEast
                 {
-                    db[(x, y)][North as usize] = 1;
+                    db[(x, y)][North as usize] = 3;
                 } else if nb.contains(North) {
                     db[(x, y)][North as usize] = db[(x, y - 1)][North as usize] + 2;
                 }
@@ -71,7 +71,7 @@ impl JumpDistDatabase {
                 if nb & (East | NorthEast | North) == East | NorthEast
                     || nb & (East | SouthEast | South) == East | SouthEast
                 {
-                    db[(x, y)][East as usize] = 1;
+                    db[(x, y)][East as usize] = 3;
                 } else if nb.contains(East) {
                     db[(x, y)][East as usize] = db[(x + 1, y)][East as usize] + 2;
                 }
@@ -80,8 +80,8 @@ impl JumpDistDatabase {
                 if nb & (South | SouthWest | West) == South | SouthWest
                     || nb & (South | SouthEast | East) == South | SouthEast
                 {
-                    db[(x, y)][South as usize] = 1;
-                } else if nb.contains(East) {
+                    db[(x, y)][South as usize] = 3;
+                } else if nb.contains(South) {
                     db[(x, y)][South as usize] = db[(x, y + 1)][South as usize] + 2;
                 }
             }
@@ -100,14 +100,14 @@ impl JumpDistDatabase {
                     {
                         // At least one of the orthogonal jumps for the next tile has a successor;
                         // distance 1, successor.
-                        db[(x, y)][NorthWest as usize] = 1;
+                        db[(x, y)][NorthWest as usize] = 3;
                     } else {
                         // The location to the west is not a jump point, but we can jump through it.
                         // Increase the distance by 1 and keep the successor flag.
                         db[(x, y)][NorthWest as usize] = db[(x - 1, y - 1)][NorthWest as usize] + 2;
                     }
                 } else {
-                    // If we can't go northwest, then the jump distance is 1 and there is no
+                    // If we can't go northwest, then the jump distance is 0 and there is no
                     // successor. This is represented by db value 0, which is the default, so we
                     // don't need to do anything.
                 }
@@ -118,7 +118,7 @@ impl JumpDistDatabase {
                     if db[(x + 1, y - 1)][East as usize] & 1 != 0
                         || db[(x + 1, y - 1)][North as usize] & 1 != 0
                     {
-                        db[(x, y)][NorthEast as usize] = 1;
+                        db[(x, y)][NorthEast as usize] = 3;
                     } else {
                         db[(x, y)][NorthEast as usize] = db[(x + 1, y - 1)][NorthEast as usize] + 2;
                     }
@@ -135,7 +135,7 @@ impl JumpDistDatabase {
                     if db[(x - 1, y + 1)][West as usize] & 1 != 0
                         || db[(x - 1, y + 1)][South as usize] & 1 != 0
                     {
-                        db[(x, y)][SouthWest as usize] = 1;
+                        db[(x, y)][SouthWest as usize] = 3;
                     } else {
                         db[(x, y)][SouthWest as usize] = db[(x - 1, y + 1)][SouthWest as usize] + 2;
                     }
@@ -146,7 +146,7 @@ impl JumpDistDatabase {
                     if db[(x + 1, y + 1)][East as usize] & 1 != 0
                         || db[(x + 1, y + 1)][South as usize] & 1 != 0
                     {
-                        db[(x, y)][SouthEast as usize] = 1;
+                        db[(x, y)][SouthEast as usize] = 3;
                     } else {
                         db[(x, y)][SouthEast as usize] = db[(x + 1, y + 1)][SouthEast as usize] + 2;
                     }
@@ -164,7 +164,7 @@ impl JumpDistDatabase {
 
     pub unsafe fn get_unchecked(&self, x: i32, y: i32, dir: Direction) -> (i32, bool) {
         let raw = self.db.get_unchecked(x, y)[dir as usize];
-        ((raw >> 1) as i32 + 1, raw & 1 != 0)
+        ((raw >> 1) as i32, raw & 1 != 0)
     }
 }
 
@@ -196,7 +196,7 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
         };
         new_x = x + DX * new_x;
         let all_1s = new_x;
-        if y == self.target.1 && skipped_past::<DX>(x, new_x, self.target.0) {
+        if y == self.target.1 && skipped_past::<DX>(x, new_x + DX, self.target.0) {
             successor = true;
             new_x = self.target.0;
         }
@@ -224,7 +224,7 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
         };
         new_y = y + DY * new_y;
         let all_1s = new_y;
-        if x == self.target.0 && skipped_past::<DY>(y, new_y, self.target.1) {
+        if x == self.target.0 && skipped_past::<DY>(y, new_y + DY, self.target.1) {
             // self.target.1 is strictly between y (in-bounds) and new_y (padded in-bounds),
             // so self.target.1 must be in-bounds (it cannot be padded in-bounds).
             successor = true;
@@ -260,7 +260,16 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
             let new_x = x + DX * dist;
             let new_y = y + DY * dist;
 
-            if skipped_past::<DX>(x, new_x, self.target.0) {
+            let extended_x = match successor {
+                true => new_x,
+                false => new_x + DX,
+            };
+            let extended_y = match successor {
+                true => new_y,
+                false => new_y + DY,
+            };
+
+            if skipped_past::<DX>(x, extended_x, self.target.0) {
                 let dist = signed_distance::<DX>(x, self.target.0);
                 let cost = cost + dist as f64 * SQRT_2;
                 let new_x = self.target.0;
@@ -274,7 +283,7 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
                 }
             }
 
-            if skipped_past::<DY>(y, new_y, self.target.1) {
+            if skipped_past::<DY>(y, extended_y, self.target.1) {
                 let dist = signed_distance::<DY>(y, self.target.1);
                 let cost = cost + dist as f64 * SQRT_2;
                 let new_x = x + DX * dist;
@@ -283,23 +292,23 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
                     found((new_x, new_y), cost);
                     break;
                 }
-                if in_direction::<DY>(new_x, self.target.0) {
+                if in_direction::<DX>(new_x, self.target.0) {
                     self.jump_x::<DX, DY>(found, new_x, new_y, cost, 0);
                 }
             }
 
-            if (new_x, new_y) == self.target {
-                found((new_x, new_y), cost);
+            x = new_x;
+            y = new_y;
+            cost += dist as f64 * SQRT_2;
+
+            if (x, y) == self.target {
+                found((x, y), cost);
                 break;
             }
 
             if !successor {
                 break;
             }
-
-            x = new_x;
-            y = new_y;
-            cost += dist as f64 * SQRT_2;
 
             self.jump_x::<DX, DY>(found, x, y, cost, 0);
             self.jump_y::<DX, DY>(found, x, y, cost, 0);
