@@ -1,10 +1,14 @@
-use expander::JpsExpander;
+use expander::GenericJpsExpander;
 use mkpath_core::NodeRef;
-use mkpath_grid::{BitGrid, GridStateMapper};
+use mkpath_grid::{BitGrid, Direction, GridStateMapper};
+use offline_jpl::OfflineJpl;
 use online_jpl::OnlineJpl;
 
 mod expander;
+mod offline_jpl;
 mod online_jpl;
+
+pub use self::offline_jpl::JumpDistDatabase;
 
 pub struct JpsGrid {
     map: BitGrid,
@@ -23,23 +27,29 @@ impl From<BitGrid> for JpsGrid {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum Direction {
-    North,
-    West,
-    South,
-    East,
-    NorthWest,
-    SouthWest,
-    SouthEast,
-    NorthEast,
+pub struct JpsExpander<'a, P>(GenericJpsExpander<'a, OnlineJpl<'a>, P>);
+
+impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
+    pub fn new(map: &'a JpsGrid, node_pool: &'a P, target: (i32, i32)) -> Self {
+        JpsExpander(GenericJpsExpander::new(
+            OnlineJpl::new(map, target),
+            node_pool,
+        ))
+    }
+
+    pub fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<(NodeRef<'a>, f64)>) {
+        self.0.expand(node, edges)
+    }
 }
 
-pub struct OnlineJpsExpander<'a, P>(JpsExpander<'a, OnlineJpl<'a>, P>);
+pub struct JpsPlusExpander<'a, P>(GenericJpsExpander<'a, OfflineJpl<'a>, P>);
 
-impl<'a, P: GridStateMapper> OnlineJpsExpander<'a, P> {
-    pub fn new(map: &'a JpsGrid, node_pool: &'a P, target: (i32, i32)) -> Self {
-        OnlineJpsExpander(JpsExpander::new(OnlineJpl::new(map, target), node_pool))
+impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
+    pub fn new(jp_db: &'a JumpDistDatabase, node_pool: &'a P, target: (i32, i32)) -> Self {
+        JpsPlusExpander(GenericJpsExpander::new(
+            OfflineJpl::new(jp_db, target),
+            node_pool,
+        ))
     }
 
     pub fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<(NodeRef<'a>, f64)>) {
@@ -80,11 +90,19 @@ fn reached_direction(from: (i32, i32), to: (i32, i32)) -> Option<Direction> {
 }
 
 fn skipped_past<const D: i32>(start: i32, end: i32, target: i32) -> bool {
+    in_direction::<D>(start, target) && in_direction::<D>(target, end)
+}
+
+fn in_direction<const D: i32>(from: i32, to: i32) -> bool {
     match D {
-        -1 => start > target && end < target,
-        1 => target > start && target < end,
-        _ => unreachable!()
+        -1 => to < from,
+        1 => from < to,
+        _ => unreachable!(),
     }
+}
+
+fn signed_distance<const D: i32>(from: i32, to: i32) -> i32 {
+    (to - from) * D
 }
 
 trait JumpPointLocator {

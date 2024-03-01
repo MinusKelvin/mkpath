@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use mkpath::grid::octile_distance;
-use mkpath::jps::JpsExpander;
+use mkpath::jps::JpsPlusExpander;
 use mkpath::{HashPool, NodeBuilder, PriorityQueueFactory};
+use mkpath_jps::JumpDistDatabase;
 use structopt::StructOpt;
 
 mod movingai;
@@ -25,13 +26,13 @@ fn main() {
     let mut open_list_factory = PriorityQueueFactory::new(&mut builder);
 
     let mut pool = HashPool::new(builder.build(), state);
-    let map = map.into();
+    let map = JumpDistDatabase::new(map);
 
     for problem in &scen.instances {
         pool.reset();
 
         let mut open_list = open_list_factory.new_queue((f, h));
-        let mut expander = JpsExpander::new(&map, &pool, problem.target);
+        let mut expander = JpsPlusExpander::new(&map, &pool, problem.target);
         let mut edges = vec![];
 
         // start node
