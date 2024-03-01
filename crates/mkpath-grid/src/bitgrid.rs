@@ -1,3 +1,7 @@
+use enumset::EnumSet;
+
+use crate::Direction;
+
 /// 2D grid map represented as a bit array.
 ///
 /// We use `false` to represent non-traversable cells and `true` to represent traversable cells.
@@ -64,6 +68,42 @@ impl BitGrid {
         unsafe {
             self.set_unchecked(x, y, traversable);
         }
+    }
+
+    #[track_caller]
+    #[inline(always)]
+    pub fn get_neighborhood(&self, x: i32, y: i32) -> EnumSet<Direction> {
+        self.unpadded_bounds_check(x, y);
+        let mut nbhood = EnumSet::empty();
+        unsafe {
+            // SAFETY: We checked that the coordinates are unpadded in-bounds, so coordinates
+            //         within 1 cell in each direction are padded in-bounds, as required.
+            if self.get_unchecked(x, y - 1) {
+                nbhood |= Direction::North;
+            }
+            if self.get_unchecked(x - 1, y) {
+                nbhood |= Direction::West;
+            }
+            if self.get_unchecked(x, y + 1) {
+                nbhood |= Direction::South;
+            }
+            if self.get_unchecked(x + 1, y) {
+                nbhood |= Direction::East;
+            }
+            if self.get_unchecked(x - 1, y - 1) {
+                nbhood |= Direction::NorthWest;
+            }
+            if self.get_unchecked(x - 1, y + 1) {
+                nbhood |= Direction::SouthWest;
+            }
+            if self.get_unchecked(x + 1, y - 1) {
+                nbhood |= Direction::NorthEast;
+            }
+            if self.get_unchecked(x + 1, y + 1) {
+                nbhood |= Direction::SouthEast;
+            }
+        }
+        nbhood
     }
 
     /// Gets the traversability of a cell without bounds checking.

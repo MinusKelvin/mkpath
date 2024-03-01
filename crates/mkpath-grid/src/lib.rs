@@ -2,16 +2,29 @@
 //! 2D grid types and algorithms for `mkpath`.
 
 mod bitgrid;
+mod eight_connected;
 mod grid;
 mod grid_pool;
-mod eight_connected;
 
+use enumset::EnumSetType;
 use mkpath_core::{HashPool, NodeMemberPointer, NodeRef, NullPool};
 
 pub use self::bitgrid::*;
+pub use self::eight_connected::*;
 pub use self::grid::*;
 pub use self::grid_pool::*;
-pub use self::eight_connected::*;
+
+#[derive(EnumSetType, Debug)]
+pub enum Direction {
+    North,
+    West,
+    South,
+    East,
+    NorthWest,
+    SouthWest,
+    SouthEast,
+    NorthEast,
+}
 
 /// Trait for specialized grid-to-node mappers.
 ///
