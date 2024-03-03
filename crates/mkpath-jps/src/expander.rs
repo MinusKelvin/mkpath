@@ -3,16 +3,12 @@ use mkpath_grid::GridStateMapper;
 
 use crate::{Direction, JumpPointLocator};
 
-/// Jump point search expander.
-///
-/// Harabor, D., & Grastien, A. (2014, May). Improving jump point search. In Proceedings of the
-/// International Conference on Automated Planning and Scheduling (Vol. 24, pp. 128-135).
-pub(crate) struct GenericJpsExpander<'a, J, P> {
+pub(crate) struct CanonicalExpander<'a, J, P> {
     jpl: J,
     node_pool: &'a P,
 }
 
-impl<'a, J: JumpPointLocator, P: GridStateMapper> GenericJpsExpander<'a, J, P> {
+impl<'a, J: JumpPointLocator, P: GridStateMapper> CanonicalExpander<'a, J, P> {
     pub fn new(jpl: J, node_pool: &'a P) -> Self {
         // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
         // node pool.
@@ -25,7 +21,7 @@ impl<'a, J: JumpPointLocator, P: GridStateMapper> GenericJpsExpander<'a, J, P> {
             "node pool must be tall enough for the map"
         );
 
-        GenericJpsExpander { jpl, node_pool }
+        CanonicalExpander { jpl, node_pool }
     }
 
     pub fn expand(&mut self, node: NodeRef, edges: &mut Vec<(NodeRef<'a>, f64)>) {

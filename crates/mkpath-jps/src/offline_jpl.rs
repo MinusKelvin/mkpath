@@ -5,16 +5,16 @@ use mkpath_grid::{BitGrid, Grid};
 use crate::{in_direction, signed_distance, skipped_past, Direction, JumpPointLocator};
 
 pub(crate) struct OfflineJpl<'a> {
-    jp_db: &'a JumpDistDatabase,
+    jp_db: &'a JumpDatabase,
     target: (i32, i32),
 }
 
-pub struct JumpDistDatabase {
+pub struct JumpDatabase {
     map: BitGrid,
     db: Grid<[u16; 8]>,
 }
 
-impl JumpDistDatabase {
+impl JumpDatabase {
     #[inline(never)]
     pub fn new(map: BitGrid) -> Self {
         use Direction::*;
@@ -154,7 +154,7 @@ impl JumpDistDatabase {
             }
         }
 
-        JumpDistDatabase { map, db }
+        JumpDatabase { map, db }
     }
 
     pub fn get(&self, x: i32, y: i32, dir: Direction) -> (i32, bool) {
@@ -169,7 +169,7 @@ impl JumpDistDatabase {
 }
 
 impl<'a> OfflineJpl<'a> {
-    pub fn new(jp_db: &'a JumpDistDatabase, target: (i32, i32)) -> Self {
+    pub fn new(jp_db: &'a JumpDatabase, target: (i32, i32)) -> Self {
         OfflineJpl { jp_db, target }
     }
 }

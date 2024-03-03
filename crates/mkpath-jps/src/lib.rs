@@ -1,4 +1,4 @@
-use expander::GenericJpsExpander;
+use expander::CanonicalExpander;
 use mkpath_core::NodeRef;
 use mkpath_grid::{BitGrid, Direction, GridStateMapper};
 use offline_jpl::OfflineJpl;
@@ -8,7 +8,7 @@ mod expander;
 mod offline_jpl;
 mod online_jpl;
 
-pub use self::offline_jpl::JumpDistDatabase;
+pub use self::offline_jpl::JumpDatabase;
 
 pub struct JpsGrid {
     map: BitGrid,
@@ -27,11 +27,15 @@ impl From<BitGrid> for JpsGrid {
     }
 }
 
-pub struct JpsExpander<'a, P>(GenericJpsExpander<'a, OnlineJpl<'a>, P>);
+/// Jump Point Search expander.
+///
+/// Harabor, D., & Grastien, A. (2014, May). Improving jump point search. In Proceedings of the
+/// International Conference on Automated Planning and Scheduling (Vol. 24, pp. 128-135).
+pub struct JpsExpander<'a, P>(CanonicalExpander<'a, OnlineJpl<'a>, P>);
 
 impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
     pub fn new(map: &'a JpsGrid, node_pool: &'a P, target: (i32, i32)) -> Self {
-        JpsExpander(GenericJpsExpander::new(
+        JpsExpander(CanonicalExpander::new(
             OnlineJpl::new(map, target),
             node_pool,
         ))
@@ -42,11 +46,15 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
     }
 }
 
-pub struct JpsPlusExpander<'a, P>(GenericJpsExpander<'a, OfflineJpl<'a>, P>);
+/// Jump Point Search Plus expander.
+///
+/// Harabor, D., & Grastien, A. (2014, May). Improving jump point search. In Proceedings of the
+/// International Conference on Automated Planning and Scheduling (Vol. 24, pp. 128-135).
+pub struct JpsPlusExpander<'a, P>(CanonicalExpander<'a, OfflineJpl<'a>, P>);
 
 impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
-    pub fn new(jp_db: &'a JumpDistDatabase, node_pool: &'a P, target: (i32, i32)) -> Self {
-        JpsPlusExpander(GenericJpsExpander::new(
+    pub fn new(jp_db: &'a JumpDatabase, node_pool: &'a P, target: (i32, i32)) -> Self {
+        JpsPlusExpander(CanonicalExpander::new(
             OfflineJpl::new(jp_db, target),
             node_pool,
         ))

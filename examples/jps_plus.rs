@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use mkpath::grid::octile_distance;
 use mkpath::jps::JpsPlusExpander;
 use mkpath::{HashPool, NodeBuilder, PriorityQueueFactory};
-use mkpath_jps::JumpDistDatabase;
+use mkpath_jps::JumpDatabase;
 use structopt::StructOpt;
 
 mod movingai;
@@ -26,7 +26,7 @@ fn main() {
     let mut open_list_factory = PriorityQueueFactory::new(&mut builder);
 
     let mut pool = HashPool::new(builder.build(), state);
-    let map = JumpDistDatabase::new(map);
+    let map = JumpDatabase::new(map);
 
     for problem in &scen.instances {
         pool.reset();
