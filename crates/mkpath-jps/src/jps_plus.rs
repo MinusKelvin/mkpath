@@ -1,10 +1,31 @@
 use std::f64::consts::SQRT_2;
 
-use mkpath_grid::{BitGrid, Grid};
+use mkpath_core::NodeRef;
+use mkpath_grid::{BitGrid, Grid, GridStateMapper};
 
+use crate::expander::CanonicalExpander;
 use crate::{in_direction, signed_distance, skipped_past, Direction, JumpPointLocator};
 
-pub(crate) struct OfflineJpl<'a> {
+/// Jump Point Search Plus expander.
+///
+/// Harabor, D., & Grastien, A. (2014, May). Improving jump point search. In Proceedings of the
+/// International Conference on Automated Planning and Scheduling (Vol. 24, pp. 128-135).
+pub struct JpsPlusExpander<'a, P>(CanonicalExpander<'a, OfflineJpl<'a>, P>);
+
+impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
+    pub fn new(jp_db: &'a JumpDatabase, node_pool: &'a P, target: (i32, i32)) -> Self {
+        JpsPlusExpander(CanonicalExpander::new(
+            OfflineJpl::new(jp_db, target),
+            node_pool,
+        ))
+    }
+
+    pub fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<(NodeRef<'a>, f64)>) {
+        self.0.expand(node, edges)
+    }
+}
+
+struct OfflineJpl<'a> {
     jp_db: &'a JumpDatabase,
     target: (i32, i32),
 }
