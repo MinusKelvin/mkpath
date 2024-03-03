@@ -9,6 +9,7 @@ mod pqueue;
 mod hash_pool;
 mod null_pool;
 mod complex_pool;
+pub mod traits;
 
 pub use crate::node::*;
 pub use crate::pqueue::*;

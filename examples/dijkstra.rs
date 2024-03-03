@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use mkpath::grid::{EightConnectedExpander, GridPool};
+use mkpath::traits::Expander;
 use mkpath::{NodeBuilder, PriorityQueueFactory};
+use mkpath_grid::GridEdge;
 use structopt::StructOpt;
 
 mod movingai;
@@ -46,7 +48,10 @@ fn main() {
             edges.clear();
             expander.expand(node, &mut edges);
 
-            for &(successor, cost) in &edges {
+            for &GridEdge {
+                successor, cost, ..
+            } in &edges
+            {
                 let new_g = node.get(g) + cost;
                 if new_g < successor.get(g) {
                     successor.set_parent(Some(node));

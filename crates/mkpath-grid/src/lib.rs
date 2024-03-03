@@ -7,6 +7,7 @@ mod grid;
 mod grid_pool;
 
 use enumset::EnumSetType;
+use mkpath_core::traits::{Cost, EdgeId, Successor};
 use mkpath_core::{HashPool, NodeMemberPointer, NodeRef, NullPool};
 
 pub use self::bitgrid::*;
@@ -24,6 +25,48 @@ pub enum Direction {
     SouthWest,
     SouthEast,
     NorthEast,
+}
+
+impl TryFrom<usize> for Direction {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Direction::North),
+            1 => Ok(Direction::West),
+            2 => Ok(Direction::South),
+            3 => Ok(Direction::East),
+            4 => Ok(Direction::NorthWest),
+            5 => Ok(Direction::SouthWest),
+            6 => Ok(Direction::SouthEast),
+            7 => Ok(Direction::NorthEast),
+            _ => Err(()),
+        }
+    }
+}
+
+pub struct GridEdge<'a> {
+    pub successor: NodeRef<'a>,
+    pub cost: f64,
+    pub direction: Direction,
+}
+
+impl<'a> Successor<'a> for GridEdge<'a> {
+    fn successor(&self) -> NodeRef<'a> {
+        self.successor
+    }
+}
+
+impl Cost for GridEdge<'_> {
+    fn cost(&self) -> f64 {
+        self.cost
+    }
+}
+
+impl EdgeId for GridEdge<'_> {
+    fn edge_id(&self) -> usize {
+        self.direction as usize
+    }
 }
 
 /// Trait for specialized grid-to-node mappers.

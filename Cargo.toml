@@ -21,4 +21,5 @@ mkpath-jps = { workspace = true }
 mkpath-cpd = { workspace = true }
 
 [dev-dependencies]
+rayon = "1.9.0"
 structopt = "0.3.26"

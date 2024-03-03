@@ -2,9 +2,10 @@
 
 use std::f64::consts::SQRT_2;
 
+use mkpath_core::traits::Expander;
 use mkpath_core::NodeRef;
 
-use crate::{BitGrid, GridStateMapper};
+use crate::{BitGrid, Direction, GridEdge, GridStateMapper};
 
 pub struct EightConnectedExpander<'a, P> {
     map: &'a BitGrid,
@@ -26,8 +27,12 @@ impl<'a, P: GridStateMapper> EightConnectedExpander<'a, P> {
 
         EightConnectedExpander { map, node_pool }
     }
+}
 
-    pub fn expand(&mut self, node: NodeRef, edges: &mut Vec<(NodeRef<'a>, f64)>) {
+impl<'a, P: GridStateMapper> Expander<'a> for EightConnectedExpander<'a, P> {
+    type Edge = GridEdge<'a>;
+
+    fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<GridEdge<'a>>) {
         let (x, y) = node.get(self.node_pool.state_member());
 
         assert!(
@@ -44,34 +49,66 @@ impl<'a, P: GridStateMapper> EightConnectedExpander<'a, P> {
 
             let north_traversable = self.map.get_unchecked(x, y - 1);
             if north_traversable {
-                edges.push((self.node_pool.generate_unchecked((x, y - 1)), 1.0));
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x, y - 1)),
+                    cost: 1.0,
+                    direction: Direction::North,
+                });
             }
 
             let south_traversable = self.map.get_unchecked(x, y + 1);
             if south_traversable {
-                edges.push((self.node_pool.generate_unchecked((x, y + 1)), 1.0));
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x, y + 1)),
+                    cost: 1.0,
+                    direction: Direction::South,
+                });
             }
 
             if self.map.get_unchecked(x - 1, y) {
-                edges.push((self.node_pool.generate_unchecked((x - 1, y)), 1.0));
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x - 1, y)),
+                    cost: 1.0,
+                    direction: Direction::West,
+                });
 
                 if north_traversable && self.map.get_unchecked(x - 1, y - 1) {
-                    edges.push((self.node_pool.generate_unchecked((x - 1, y - 1)), SQRT_2));
+                    edges.push(GridEdge {
+                        successor: self.node_pool.generate_unchecked((x - 1, y - 1)),
+                        cost: SQRT_2,
+                        direction: Direction::NorthWest,
+                    });
                 }
 
                 if south_traversable && self.map.get_unchecked(x - 1, y + 1) {
-                    edges.push((self.node_pool.generate_unchecked((x - 1, y + 1)), SQRT_2));
+                    edges.push(GridEdge {
+                        successor: self.node_pool.generate_unchecked((x - 1, y + 1)),
+                        cost: SQRT_2,
+                        direction: Direction::SouthWest,
+                    });
                 }
             }
             if self.map.get_unchecked(x + 1, y) {
-                edges.push((self.node_pool.generate_unchecked((x + 1, y)), 1.0));
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x + 1, y)),
+                    cost: 1.0,
+                    direction: Direction::East,
+                });
 
                 if north_traversable && self.map.get_unchecked(x + 1, y - 1) {
-                    edges.push((self.node_pool.generate_unchecked((x + 1, y - 1)), SQRT_2));
+                    edges.push(GridEdge {
+                        successor: self.node_pool.generate_unchecked((x + 1, y - 1)),
+                        cost: SQRT_2,
+                        direction: Direction::NorthEast,
+                    });
                 }
 
                 if south_traversable && self.map.get_unchecked(x + 1, y + 1) {
-                    edges.push((self.node_pool.generate_unchecked((x + 1, y + 1)), SQRT_2));
+                    edges.push(GridEdge {
+                        successor: self.node_pool.generate_unchecked((x + 1, y + 1)),
+                        cost: SQRT_2,
+                        direction: Direction::SouthEast,
+                    });
                 }
             }
         }

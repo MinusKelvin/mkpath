@@ -120,6 +120,7 @@ impl NodeBuilder {
         }
     }
 
+    #[must_use]
     pub fn add_field<T: Copy + 'static>(&mut self, default: T) -> NodeMemberPointer<T> {
         let (layout, offset) = self.layout.extend(Layout::new::<T>()).unwrap();
         self.default.resize(layout.size(), 0);
