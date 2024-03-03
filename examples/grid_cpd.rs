@@ -120,6 +120,8 @@ fn build_cpd(map: &Path, output: &Path) -> std::io::Result<()> {
         }
     }
 
+    drop(pool);
+
     let mapper = GridMapper { grid, array };
     let progress = AtomicUsize::new(0);
     let mut rows = vec![];
@@ -133,7 +135,12 @@ fn build_cpd(map: &Path, output: &Path) -> std::io::Result<()> {
                 let mut builder = NodeBuilder::new();
                 let state = builder.add_field((-1, -1));
                 let searcher = FirstMoveSearcher::new(&mut builder);
-                let pool = GridPool::new(builder.build(), state, map.width(), map.height());
+                let pool = GridPool::new(
+                    builder.build_with_capacity(mapper.array.len()),
+                    state,
+                    map.width(),
+                    map.height(),
+                );
                 (state, searcher, pool)
             },
             |(state, searcher, pool), &source| {

@@ -108,7 +108,13 @@ impl NodeBuilder {
         }
     }
 
+    #[must_use]
     pub fn build(self) -> NodeAllocator {
+        self.build_with_capacity(0)
+    }
+
+    #[must_use]
+    pub fn build_with_capacity(self, capacity: usize) -> NodeAllocator {
         let layout = self.layout.pad_to_align();
         let mut default = self.default;
         default.resize(layout.size(), 0);
@@ -116,7 +122,7 @@ impl NodeBuilder {
             layout_id: self.layout_id,
             default: default.into_boxed_slice(),
             layout,
-            arena: Bump::new(),
+            arena: Bump::with_capacity(capacity * layout.size()),
         }
     }
 
