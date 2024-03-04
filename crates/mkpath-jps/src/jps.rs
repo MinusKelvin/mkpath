@@ -1,7 +1,8 @@
 use std::f64::consts::SQRT_2;
 
+use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
-use mkpath_grid::{BitGrid, GridStateMapper};
+use mkpath_grid::{BitGrid, Direction, GridStateMapper};
 
 use crate::expander::CanonicalExpander;
 use crate::{skipped_past, JpsGrid, JumpPointLocator};
@@ -19,9 +20,15 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
             node_pool,
         ))
     }
+}
 
-    pub fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<(NodeRef<'a>, f64)>) {
-        self.0.expand(node, edges)
+impl<'a, P: GridStateMapper> Expander<'a> for JpsExpander<'a, P> {
+    type Edge = WeightedEdge<'a>;
+
+    fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
+        self.0.expand(node, |successor, cost, _| {
+            edges.push(WeightedEdge { successor, cost })
+        })
     }
 }
 
@@ -52,7 +59,7 @@ impl JumpPointLocator for OnlineJpl<'_> {
     /// Returns the x coordinate at which the jump stopped (all_1s for adjacent jump).
     unsafe fn jump_x<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64),
+        found: &mut impl FnMut((i32, i32), f64, Direction),
         x: i32,
         y: i32,
         cost: f64,
@@ -71,7 +78,15 @@ impl JumpPointLocator for OnlineJpl<'_> {
             new_x = self.target.0;
         }
         if successor {
-            found((new_x, y), cost + (DX * (new_x - x)) as f64);
+            found(
+                (new_x, y),
+                cost + (DX * (new_x - x)) as f64,
+                match DX {
+                    -1 => Direction::West,
+                    1 => Direction::East,
+                    _ => unreachable!(),
+                },
+            );
         }
         all_1s
     }
@@ -87,7 +102,7 @@ impl JumpPointLocator for OnlineJpl<'_> {
     /// Returns the y coordinate at which the jump stopped (all_1s for adjacent jump).
     unsafe fn jump_y<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64),
+        found: &mut impl FnMut((i32, i32), f64, Direction),
         x: i32,
         y: i32,
         cost: f64,
@@ -112,7 +127,15 @@ impl JumpPointLocator for OnlineJpl<'_> {
         if successor {
             // new_y is in-bounds by either the contract of jump_left, or by the conditions
             // of the prior if statement.
-            found((x, new_y), cost + (DY * (new_y - y)) as f64)
+            found(
+                (x, new_y),
+                cost + (DY * (new_y - y)) as f64,
+                match DY {
+                    -1 => Direction::North,
+                    1 => Direction::South,
+                    _ => unreachable!(),
+                },
+            )
         }
         all_1s
     }
@@ -125,7 +148,7 @@ impl JumpPointLocator for OnlineJpl<'_> {
     /// - `x+DX`, `y+DY` is traversable.
     unsafe fn jump_diag<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64),
+        found: &mut impl FnMut((i32, i32), f64, Direction),
         mut x: i32,
         mut y: i32,
         mut x_all_1s: i32,
@@ -142,7 +165,17 @@ impl JumpPointLocator for OnlineJpl<'_> {
                 if (x, y) == self.target {
                     // x, y is traversable, which implies x, y is in-bounds.
                     // Coordinates in-bounds of the map are also in-bounds of the node pool.
-                    found((x, y), cost);
+                    found(
+                        (x, y),
+                        cost,
+                        match (DX, DY) {
+                            (-1, -1) => Direction::NorthWest,
+                            (-1, 1) => Direction::SouthWest,
+                            (1, -1) => Direction::NorthEast,
+                            (1, 1) => Direction::SouthEast,
+                            _ => unreachable!(),
+                        },
+                    );
                     break;
                 }
 

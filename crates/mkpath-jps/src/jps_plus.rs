@@ -1,5 +1,6 @@
 use std::f64::consts::SQRT_2;
 
+use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
 use mkpath_grid::{BitGrid, Grid, GridStateMapper};
 
@@ -19,9 +20,15 @@ impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
             node_pool,
         ))
     }
+}
 
-    pub fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<(NodeRef<'a>, f64)>) {
-        self.0.expand(node, edges)
+impl<'a, P: GridStateMapper> Expander<'a> for JpsPlusExpander<'a, P> {
+    type Edge = WeightedEdge<'a>;
+
+    fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
+        self.0.expand(node, |successor, cost, _| {
+            edges.push(WeightedEdge { successor, cost })
+        })
     }
 }
 
@@ -202,19 +209,18 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
 
     unsafe fn jump_x<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64),
+        found: &mut impl FnMut((i32, i32), f64, Direction),
         x: i32,
         y: i32,
         cost: f64,
         _all_1s: i32,
     ) -> i32 {
-        let (mut new_x, mut successor) = unsafe {
-            match DX {
-                -1 => self.jp_db.get_unchecked(x, y, Direction::West),
-                1 => self.jp_db.get_unchecked(x, y, Direction::East),
-                _ => unreachable!(),
-            }
+        let dir = match DX {
+            -1 => Direction::West,
+            1 => Direction::East,
+            _ => unreachable!(),
         };
+        let (mut new_x, mut successor) = unsafe { self.jp_db.get_unchecked(x, y, dir) };
         new_x = x + DX * new_x;
         let all_1s = new_x;
         if y == self.target.1 && skipped_past::<DX>(x, new_x + DX, self.target.0) {
@@ -222,27 +228,26 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
             new_x = self.target.0;
         }
         if successor {
-            found((new_x, y), cost + (DX * (new_x - x)) as f64);
+            found((new_x, y), cost + (DX * (new_x - x)) as f64, dir);
         }
         all_1s
     }
 
     unsafe fn jump_y<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64),
+        found: &mut impl FnMut((i32, i32), f64, Direction),
         x: i32,
         y: i32,
         cost: f64,
         _all_1s: i32,
     ) -> i32 {
-        let (mut new_y, mut successor) = unsafe {
-            // The preconditions are upheld by the caller.
-            match DY {
-                -1 => self.jp_db.get_unchecked(x, y, Direction::North),
-                1 => self.jp_db.get_unchecked(x, y, Direction::South),
-                _ => unreachable!(),
-            }
+        let dir = match DY {
+            -1 => Direction::North,
+            1 => Direction::South,
+            _ => unreachable!(),
         };
+        // The preconditions are upheld by the caller.
+        let (mut new_y, mut successor) = unsafe { self.jp_db.get_unchecked(x, y, dir) };
         new_y = y + DY * new_y;
         let all_1s = new_y;
         if x == self.target.0 && skipped_past::<DY>(y, new_y + DY, self.target.1) {
@@ -254,14 +259,14 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
         if successor {
             // new_y is in-bounds by either the contract of jump_left, or by the conditions
             // of the prior if statement.
-            found((x, new_y), cost + (DY * (new_y - y)) as f64)
+            found((x, new_y), cost + (DY * (new_y - y)) as f64, dir)
         }
         all_1s
     }
 
     unsafe fn jump_diag<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64),
+        found: &mut impl FnMut((i32, i32), f64, Direction),
         mut x: i32,
         mut y: i32,
         _x_all_1s: i32,
@@ -296,7 +301,7 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
                 let new_x = self.target.0;
                 let new_y = y + DY * dist;
                 if (new_x, new_y) == self.target {
-                    found((new_x, new_y), cost);
+                    found((new_x, new_y), cost, dir);
                     break;
                 }
                 if in_direction::<DY>(new_y, self.target.1) {
@@ -310,7 +315,7 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
                 let new_x = x + DX * dist;
                 let new_y = self.target.1;
                 if (new_x, new_y) == self.target {
-                    found((new_x, new_y), cost);
+                    found((new_x, new_y), cost, dir);
                     break;
                 }
                 if in_direction::<DX>(new_x, self.target.0) {
@@ -323,7 +328,7 @@ impl<'a> JumpPointLocator for OfflineJpl<'a> {
             cost += dist as f64 * SQRT_2;
 
             if (x, y) == self.target {
-                found((x, y), cost);
+                found((x, y), cost, dir);
                 break;
             }
 

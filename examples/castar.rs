@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use mkpath::grid::{octile_distance, GridPool};
 use mkpath::jps::CanonicalGridExpander;
+use mkpath::traits::Expander;
 use mkpath::{NodeBuilder, PriorityQueueFactory};
+use mkpath_grid::GridEdge;
 use structopt::StructOpt;
 
 mod movingai;
@@ -51,7 +53,10 @@ fn main() {
             edges.clear();
             expander.expand(node, &mut edges);
 
-            for &(successor, cost) in &edges {
+            for &GridEdge {
+                successor, cost, ..
+            } in &edges
+            {
                 if successor.get(h).is_nan() {
                     successor.set(h, octile_distance(successor.get(state), problem.target))
                 }

@@ -1,5 +1,5 @@
 use mkpath_core::NodeRef;
-use mkpath_grid::GridStateMapper;
+use mkpath_grid::{GridEdge, GridStateMapper};
 
 use crate::{Direction, JumpPointLocator};
 
@@ -24,7 +24,7 @@ impl<'a, J: JumpPointLocator, P: GridStateMapper> CanonicalExpander<'a, J, P> {
         CanonicalExpander { jpl, node_pool }
     }
 
-    pub fn expand(&mut self, node: NodeRef, edges: &mut Vec<(NodeRef<'a>, f64)>) {
+    pub fn expand(&mut self, node: NodeRef, mut found: impl FnMut(NodeRef<'a>, f64, Direction)) {
         let (x, y) = node.get(self.node_pool.state_member());
 
         let dir = node.get_parent().and_then(|parent| {
@@ -37,8 +37,8 @@ impl<'a, J: JumpPointLocator, P: GridStateMapper> CanonicalExpander<'a, J, P> {
             "attempt to expand node at untraversable location"
         );
 
-        let found = &mut |state, cost| unsafe {
-            edges.push((self.node_pool.generate_unchecked(state), cost));
+        let found = &mut |state, cost, dir| unsafe {
+            found(self.node_pool.generate_unchecked(state), cost, dir);
         };
 
         unsafe {

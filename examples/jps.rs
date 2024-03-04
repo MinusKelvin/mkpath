@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use mkpath::grid::octile_distance;
 use mkpath::jps::JpsExpander;
+use mkpath::traits::{Expander, WeightedEdge};
 use mkpath::{HashPool, NodeBuilder, PriorityQueueFactory};
 use structopt::StructOpt;
 
@@ -52,7 +53,7 @@ fn main() {
             edges.clear();
             expander.expand(node, &mut edges);
 
-            for &(successor, cost) in &edges {
+            for &WeightedEdge { successor, cost } in &edges {
                 if successor.get(h).is_nan() {
                     successor.set(h, octile_distance(successor.get(state), problem.target))
                 }

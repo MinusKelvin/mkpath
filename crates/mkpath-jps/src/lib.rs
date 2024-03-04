@@ -88,7 +88,7 @@ trait JumpPointLocator {
     /// Returns the x coordinate at which the jump stopped (all_1s for adjacent jump).
     unsafe fn jump_x<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64),
+        found: &mut impl FnMut((i32, i32), f64, Direction),
         x: i32,
         y: i32,
         cost: f64,
@@ -106,7 +106,7 @@ trait JumpPointLocator {
     /// Returns the y coordinate at which the jump stopped (all_1s for adjacent jump).
     unsafe fn jump_y<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64),
+        found: &mut impl FnMut((i32, i32), f64, Direction),
         x: i32,
         y: i32,
         cost: f64,
@@ -121,7 +121,7 @@ trait JumpPointLocator {
     /// - `x+DX`, `y+DY` is traversable.
     unsafe fn jump_diag<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64),
+        found: &mut impl FnMut((i32, i32), f64, Direction),
         x: i32,
         y: i32,
         x_all_1s: i32,
