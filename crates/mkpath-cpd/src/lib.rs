@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::io::{Read, Write};
 
 use mkpath_core::traits::{Cost, EdgeId, Expander, OpenList, Successor};
@@ -54,23 +55,25 @@ impl CpdEntry {
 }
 
 impl CpdRow {
-    pub fn compute<'a, M, S, E, Edge>(
+    pub fn compute<'a, M, S, Exp, Edge, Open>(
         mapper: &M,
         searcher: &mut FirstMoveSearcher,
-        expander: E,
+        expander: Exp,
+        open: Open,
         start: NodeRef<'a>,
         state: NodeMemberPointer<S>,
     ) -> Self
     where
         S: Copy + 'static,
         M: StateIdMapper<State = S>,
-        E: Expander<'a, Edge = Edge>,
+        Exp: Expander<'a, Edge = Edge>,
         Edge: Successor<'a> + Cost + EdgeId,
+        Open: OpenList<'a>,
     {
         assert!(mapper.num_ids() < 1 << 26);
         let mut first_moves = vec![!0; mapper.num_ids()];
 
-        searcher.search(start, expander, |node, fm| {
+        searcher.search(start, expander, open, |node, fm| {
             first_moves[mapper.state_to_id(node.get(state))] = fm
         });
 
@@ -126,7 +129,6 @@ impl CpdRow {
 pub struct FirstMoveSearcher {
     first_move: NodeMemberPointer<u64>,
     g: NodeMemberPointer<f64>,
-    pqueue: PriorityQueueFactory,
 }
 
 impl FirstMoveSearcher {
@@ -134,25 +136,28 @@ impl FirstMoveSearcher {
         FirstMoveSearcher {
             first_move: builder.add_field(0),
             g: builder.add_field(f64::INFINITY),
-            pqueue: PriorityQueueFactory::new(builder),
         }
     }
 
-    pub fn search<'a, E, Edge>(
+    pub fn g(&self) -> NodeMemberPointer<f64> {
+        self.g
+    }
+
+    pub fn search<'a, Exp, Edge, Open>(
         &mut self,
         start: NodeRef<'a>,
-        mut expander: E,
+        mut expander: Exp,
+        mut open: Open,
         mut found: impl FnMut(NodeRef<'a>, u64),
     ) where
-        E: Expander<'a, Edge = Edge>,
+        Exp: Expander<'a, Edge = Edge>,
         Edge: Successor<'a> + Cost + EdgeId,
+        Open: OpenList<'a>,
     {
-        let first_move = self.first_move;
-        let g = self.g;
+        let FirstMoveSearcher { first_move, g } = *self;
 
         start.set(g, 0.0);
 
-        let mut open = self.pqueue.new_queue(g);
         let mut edges = vec![];
 
         // We need to handle expansion of the start node specially so that we can set the first
@@ -185,9 +190,83 @@ impl FirstMoveSearcher {
                     open.relaxed(successor);
                 } else if new_g == successor.get(g) {
                     // In case of tie, multiple first moves may allow optimal paths.
-                    // successor.set(first_move, successor.get(first_move) | node.get(first_move));
+                    successor.set(first_move, successor.get(first_move) | node.get(first_move));
                 }
             }
         }
+    }
+}
+
+pub struct BucketQueueFactory {
+    bucket_pos: NodeMemberPointer<(u32, u32)>,
+}
+
+impl BucketQueueFactory {
+    pub fn new(builder: &mut NodeBuilder) -> Self {
+        BucketQueueFactory {
+            bucket_pos: builder.add_field((u32::MAX, u32::MAX)),
+        }
+    }
+
+    pub fn new_queue<'a>(&self, g: NodeMemberPointer<f64>, bucket_width: f64) -> BucketQueue<'a> {
+        assert!(g.layout_id() == self.bucket_pos.layout_id());
+        BucketQueue {
+            bucket_number: 0,
+            bucket_width,
+            g,
+            bucket_pos: self.bucket_pos,
+            queue: VecDeque::new(),
+        }
+    }
+}
+
+pub struct BucketQueue<'a> {
+    bucket_number: u32,
+    bucket_width: f64,
+    g: NodeMemberPointer<f64>,
+    bucket_pos: NodeMemberPointer<(u32, u32)>,
+    queue: VecDeque<Vec<NodeRef<'a>>>,
+}
+
+impl<'a> OpenList<'a> for BucketQueue<'a> {
+    fn next(&mut self) -> Option<NodeRef<'a>> {
+        while let Some(front) = self.queue.front_mut() {
+            if let Some(node) = front.pop() {
+                return Some(node);
+            }
+            let old = self.queue.pop_front().unwrap();
+            if self.queue.back().is_some_and(|vec| !vec.is_empty()) {
+                self.queue.push_back(old);
+            }
+            self.bucket_number += 1;
+        }
+        None
+    }
+
+    #[inline(always)]
+    fn relaxed(&mut self, node: NodeRef<'a>) {
+        let (bucket, index) = node.get(self.bucket_pos);
+        let new_bucket = (node.get(self.g) / self.bucket_width) as u32;
+        if bucket == new_bucket {
+            return;
+        }
+
+        if bucket != u32::MAX {
+            let old_bucket = &mut self.queue[(bucket - self.bucket_number) as usize];
+            debug_assert!(old_bucket[index as usize].ptr_eq(node));
+            if let Some(swapped_in) = old_bucket.pop() {
+                if !swapped_in.ptr_eq(node) {
+                    old_bucket[index as usize] = swapped_in;
+                    swapped_in.set(self.bucket_pos, (bucket, index));
+                }
+            }
+        }
+
+        if new_bucket - self.bucket_number >= self.queue.len() as u32 {
+            self.queue.resize((new_bucket - self.bucket_number + 1) as usize, vec![]);
+        }
+        let bucket = &mut self.queue[(new_bucket - self.bucket_number) as usize];
+        node.set(self.bucket_pos, (new_bucket, bucket.len() as u32));
+        bucket.push(node);
     }
 }

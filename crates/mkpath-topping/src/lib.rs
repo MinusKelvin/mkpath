@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use ahash::{HashMap, HashSet};
 use enumset::EnumSet;
-use mkpath_core::NodeBuilder;
-use mkpath_cpd::{CpdRow, FirstMoveSearcher, StateIdMapper};
+use mkpath_core::{NodeBuilder, PriorityQueueFactory};
+use mkpath_cpd::{BucketQueueFactory, CpdRow, FirstMoveSearcher, StateIdMapper};
 use mkpath_grid::{BitGrid, Direction, EightConnectedExpander, Grid, GridPool};
 use mkpath_jps::{canonical_successors, CanonicalGridExpander, JumpDatabase};
 use rayon::prelude::*;
@@ -81,20 +81,22 @@ impl ToppingPlusOracle {
                     let mut builder = NodeBuilder::new();
                     let state = builder.add_field((-1, -1));
                     let searcher = FirstMoveSearcher::new(&mut builder);
+                    let pqueue = BucketQueueFactory::new(&mut builder);
                     let pool = GridPool::new(
                         builder.build_with_capacity(mapper.array.len()),
                         state,
                         map.width(),
                         map.height(),
                     );
-                    (state, searcher, pool)
+                    (state, searcher, pqueue, pool)
                 },
-                |(state, searcher, pool), &source| {
+                |(state, searcher, pqueue, pool), &source| {
                     pool.reset();
                     let result = CpdRow::compute(
                         &mapper,
                         searcher,
                         CanonicalGridExpander::new(jump_db.map(), pool),
+                        pqueue.new_queue(searcher.g(), 0.999),
                         pool.generate(source),
                         *state,
                     );

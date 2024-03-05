@@ -6,7 +6,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mkpath::cpd::{CpdRow, FirstMoveSearcher, StateIdMapper};
 use mkpath::grid::{EightConnectedExpander, Grid, GridPool};
-use mkpath::NodeBuilder;
+use mkpath::{NodeBuilder, PriorityQueueFactory};
+use mkpath_cpd::BucketQueueFactory;
 use mkpath_grid::Direction;
 use rayon::prelude::*;
 use structopt::StructOpt;
@@ -135,20 +136,22 @@ fn build_cpd(map: &Path, output: &Path) -> std::io::Result<()> {
                 let mut builder = NodeBuilder::new();
                 let state = builder.add_field((-1, -1));
                 let searcher = FirstMoveSearcher::new(&mut builder);
+                let pqueue = BucketQueueFactory::new(&mut builder);
                 let pool = GridPool::new(
                     builder.build_with_capacity(mapper.array.len()),
                     state,
                     map.width(),
                     map.height(),
                 );
-                (state, searcher, pool)
+                (state, searcher, pqueue, pool)
             },
-            |(state, searcher, pool), &source| {
+            |(state, searcher, pqueue, pool), &source| {
                 pool.reset();
                 let result = CpdRow::compute(
                     &mapper,
                     searcher,
                     EightConnectedExpander::new(&map, pool),
+                    pqueue.new_queue(searcher.g(), 0.9),
                     pool.generate(source),
                     *state,
                 );

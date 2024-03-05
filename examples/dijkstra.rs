@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use mkpath::grid::{EightConnectedExpander, GridPool};
 use mkpath::traits::{Expander, OpenList};
 use mkpath::{NodeBuilder, PriorityQueueFactory};
+use mkpath_cpd::BucketQueueFactory;
 use mkpath_grid::GridEdge;
 use structopt::StructOpt;
 
@@ -21,14 +22,14 @@ fn main() {
     let mut builder = NodeBuilder::new();
     let state = builder.add_field((-1, -1));
     let g = builder.add_field(f64::INFINITY);
-    let mut open_list_factory = PriorityQueueFactory::new(&mut builder);
+    let mut open_list_factory = BucketQueueFactory::new(&mut builder);
 
     let mut pool = GridPool::new(builder.build(), state, map.width(), map.height());
 
     for problem in &scen.instances {
         pool.reset();
 
-        let mut open_list = open_list_factory.new_queue(g);
+        let mut open_list = open_list_factory.new_queue(g, 0.9);
         let mut expander = EightConnectedExpander::new(&map, &pool);
         let mut edges = vec![];
 
