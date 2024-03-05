@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use mkpath_core::traits::{Cost, EdgeId, Expander, Successor};
+use mkpath_core::traits::{Cost, EdgeId, Expander, OpenList, Successor};
 use mkpath_core::{NodeBuilder, NodeMemberPointer, NodeRef, PriorityQueueFactory};
 
 pub trait StateIdMapper {
@@ -167,10 +167,10 @@ impl FirstMoveSearcher {
             );
             node.set(g, edge.cost());
             node.set(first_move, 1 << edge.edge_id());
-            open.push(node);
+            open.relaxed(node);
         }
 
-        while let Some(node) = open.pop() {
+        while let Some(node) = open.next() {
             found(node, node.get(first_move));
             edges.clear();
             expander.expand(node, &mut edges);
@@ -182,7 +182,7 @@ impl FirstMoveSearcher {
                     // Shorter path to node; update g and first move field.
                     successor.set(g, new_g);
                     successor.set(first_move, node.get(first_move));
-                    open.push(successor);
+                    open.relaxed(successor);
                 } else if new_g == successor.get(g) {
                     // In case of tie, multiple first moves may allow optimal paths.
                     // successor.set(first_move, successor.get(first_move) | node.get(first_move));

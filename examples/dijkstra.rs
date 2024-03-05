@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use mkpath::grid::{EightConnectedExpander, GridPool};
-use mkpath::traits::Expander;
+use mkpath::traits::{Expander, OpenList};
 use mkpath::{NodeBuilder, PriorityQueueFactory};
 use mkpath_grid::GridEdge;
 use structopt::StructOpt;
@@ -35,12 +35,12 @@ fn main() {
         // start node
         let start = pool.generate(problem.start);
         start.set(g, 0.0);
-        open_list.push(start);
+        open_list.relaxed(start);
 
         // target node
         let target = pool.generate(problem.target);
 
-        while let Some(node) = open_list.pop() {
+        while let Some(node) = open_list.next() {
             if node.ptr_eq(target) {
                 break;
             }
@@ -56,7 +56,7 @@ fn main() {
                 if new_g < successor.get(g) {
                     successor.set_parent(Some(node));
                     successor.set(g, new_g);
-                    open_list.push(successor);
+                    open_list.relaxed(successor);
                 }
             }
         }

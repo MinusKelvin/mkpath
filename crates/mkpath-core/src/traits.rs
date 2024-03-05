@@ -6,6 +6,12 @@ pub trait Expander<'a> {
     fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>);
 }
 
+pub trait OpenList<'a> {
+    fn next(&mut self) -> Option<NodeRef<'a>>;
+
+    fn relaxed(&mut self, node: NodeRef<'a>);
+}
+
 pub trait Successor<'a> {
     fn successor(&self) -> NodeRef<'a>;
 }

@@ -1,6 +1,7 @@
 use std::cmp::Reverse;
 
 use crate::node::*;
+use crate::traits::OpenList;
 
 /// Factory for creating [`PriorityQueue`]s for a node layout.
 pub struct PriorityQueueFactory {
@@ -47,8 +48,8 @@ impl PriorityQueueFactory {
     }
 }
 
-impl<'a, C: FieldComparator> PriorityQueue<'a, C> {
-    pub fn push(&mut self, node: NodeRef<'a>) {
+impl<'a, C: FieldComparator> OpenList<'a> for PriorityQueue<'a, C> {
+    fn relaxed(&mut self, node: NodeRef<'a>) {
         let index = node.get(self.index);
         if index >= self.heap.len() || !self.heap[index].ptr_eq(node) {
             self.heap.push(node);
@@ -62,7 +63,7 @@ impl<'a, C: FieldComparator> PriorityQueue<'a, C> {
         }
     }
 
-    pub fn pop(&mut self) -> Option<NodeRef<'a>> {
+    fn next(&mut self) -> Option<NodeRef<'a>> {
         if self.heap.is_empty() {
             return None;
         }
@@ -74,7 +75,9 @@ impl<'a, C: FieldComparator> PriorityQueue<'a, C> {
         }
         Some(ret)
     }
+}
 
+impl<'a, C: FieldComparator> PriorityQueue<'a, C> {
     unsafe fn sift_up(&mut self, node: NodeRef<'a>, mut index: usize) {
         unsafe {
             while index > 0 {
