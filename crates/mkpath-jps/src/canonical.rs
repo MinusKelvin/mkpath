@@ -4,14 +4,16 @@ use mkpath_core::traits::Expander;
 use mkpath_core::NodeRef;
 use mkpath_grid::{BitGrid, Direction, GridEdge, GridStateMapper};
 
-use crate::expander::CanonicalExpander;
-use crate::JumpPointLocator;
+use crate::canonical_successors;
 
-pub struct CanonicalGridExpander<'a, P>(CanonicalExpander<'a, JumplessJpl<'a>, P>);
+pub struct CanonicalGridExpander<'a, P> {
+    node_pool: &'a P,
+    map: &'a BitGrid,
+}
 
 impl<'a, P: GridStateMapper> CanonicalGridExpander<'a, P> {
     pub fn new(map: &'a BitGrid, node_pool: &'a P) -> Self {
-        CanonicalGridExpander(CanonicalExpander::new(JumplessJpl(map), node_pool))
+        CanonicalGridExpander { node_pool, map }
     }
 }
 
@@ -19,81 +21,75 @@ impl<'a, P: GridStateMapper> Expander<'a> for CanonicalGridExpander<'a, P> {
     type Edge = GridEdge<'a>;
 
     fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
-        self.0.expand(node, |successor, cost, direction| {
-            edges.push(GridEdge {
-                successor,
-                cost,
-                direction,
-            })
-        })
-    }
-}
+        let (x, y) = node.get(self.node_pool.state_member());
 
-struct JumplessJpl<'a>(&'a BitGrid);
+        let dir = node.get_parent().and_then(|parent| {
+            let (px, py) = parent.get(self.node_pool.state_member());
+            crate::reached_direction((px, py), (x, y))
+        });
 
-impl JumpPointLocator for JumplessJpl<'_> {
-    fn map(&self) -> &BitGrid {
-        &self.0
-    }
+        let successors = canonical_successors(self.map.get_neighborhood(x, y), dir);
 
-    unsafe fn jump_x<const DX: i32, const DY: i32>(
-        &self,
-        found: &mut impl FnMut((i32, i32), f64, Direction),
-        x: i32,
-        y: i32,
-        cost: f64,
-        _all_1s: i32,
-    ) -> i32 {
-        found(
-            (x + DX, y),
-            cost + 1.0,
-            match DX {
-                -1 => Direction::West,
-                1 => Direction::East,
-                _ => unreachable!(),
-            },
-        );
-        0
-    }
+        unsafe {
+            // All nodes have the traversability of the relevant tile checked via successor set.
+            // Remaining preconditions hold trivially.
 
-    unsafe fn jump_y<const DX: i32, const DY: i32>(
-        &self,
-        found: &mut impl FnMut((i32, i32), f64, Direction),
-        x: i32,
-        y: i32,
-        cost: f64,
-        _all_1s: i32,
-    ) -> i32 {
-        found(
-            (x, y + DY),
-            cost + 1.0,
-            match DY {
-                -1 => Direction::North,
-                1 => Direction::South,
-                _ => unreachable!(),
-            },
-        );
-        0
-    }
-
-    unsafe fn jump_diag<const DX: i32, const DY: i32>(
-        &self,
-        found: &mut impl FnMut((i32, i32), f64, Direction),
-        x: i32,
-        y: i32,
-        _x_all_1s: i32,
-        _y_all_1s: i32,
-    ) {
-        found(
-            (x + DX, y + DY),
-            SQRT_2,
-            match (DX, DY) {
-                (-1, -1) => Direction::NorthWest,
-                (-1, 1) => Direction::SouthWest,
-                (1, -1) => Direction::NorthEast,
-                (1, 1) => Direction::SouthEast,
-                _ => unreachable!(),
-            },
-        );
+            if successors.contains(Direction::North) {
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x, y - 1)),
+                    cost: 1.0,
+                    direction: Direction::North,
+                });
+            }
+            if successors.contains(Direction::West) {
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x - 1, y)),
+                    cost: 1.0,
+                    direction: Direction::West,
+                });
+            }
+            if successors.contains(Direction::South) {
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x, y + 1)),
+                    cost: 1.0,
+                    direction: Direction::South,
+                });
+            }
+            if successors.contains(Direction::East) {
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x + 1, y)),
+                    cost: 1.0,
+                    direction: Direction::East,
+                });
+            }
+            if successors.contains(Direction::NorthWest) {
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x - 1, y - 1)),
+                    cost: SQRT_2,
+                    direction: Direction::NorthWest,
+                });
+            }
+            if successors.contains(Direction::SouthWest) {
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x - 1, y + 1)),
+                    cost: SQRT_2,
+                    direction: Direction::SouthWest,
+                });
+            }
+            if successors.contains(Direction::SouthEast) {
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x + 1, y + 1)),
+                    cost: SQRT_2,
+                    direction: Direction::SouthEast,
+                });
+            }
+            if successors.contains(Direction::NorthEast) {
+                edges.push(GridEdge {
+                    successor: self.node_pool.generate_unchecked((x + 1, y - 1)),
+                    cost: SQRT_2,
+                    direction: Direction::NorthEast,
+                });
+            }
+        }
     }
 }

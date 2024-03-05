@@ -4,48 +4,25 @@ use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
 use mkpath_grid::{BitGrid, Direction, GridStateMapper};
 
-use crate::expander::CanonicalExpander;
-use crate::{skipped_past, JpsGrid, JumpPointLocator};
+use crate::{canonical_successors, skipped_past, JpsGrid};
 
 /// Jump Point Search expander.
 ///
 /// Harabor, D., & Grastien, A. (2014, May). Improving jump point search. In Proceedings of the
 /// International Conference on Automated Planning and Scheduling (Vol. 24, pp. 128-135).
-pub struct JpsExpander<'a, P>(CanonicalExpander<'a, OnlineJpl<'a>, P>);
-
-impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
-    pub fn new(map: &'a JpsGrid, node_pool: &'a P, target: (i32, i32)) -> Self {
-        JpsExpander(CanonicalExpander::new(
-            OnlineJpl::new(map, target),
-            node_pool,
-        ))
-    }
-}
-
-impl<'a, P: GridStateMapper> Expander<'a> for JpsExpander<'a, P> {
-    type Edge = WeightedEdge<'a>;
-
-    fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
-        self.0.expand(node, |successor, cost, _| {
-            edges.push(WeightedEdge { successor, cost })
-        })
-    }
-}
-
-struct OnlineJpl<'a> {
+pub struct JpsExpander<'a, P> {
+    node_pool: &'a P,
     map: &'a JpsGrid,
     target: (i32, i32),
 }
 
-impl<'a> OnlineJpl<'a> {
-    fn new(map: &'a JpsGrid, target: (i32, i32)) -> Self {
-        OnlineJpl { map, target }
-    }
-}
-
-impl JumpPointLocator for OnlineJpl<'_> {
-    fn map(&self) -> &BitGrid {
-        &self.map.map
+impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
+    pub fn new(map: &'a JpsGrid, node_pool: &'a P, target: (i32, i32)) -> Self {
+        JpsExpander {
+            node_pool,
+            map,
+            target,
+        }
     }
 
     /// Jumps horizontally.
@@ -59,7 +36,7 @@ impl JumpPointLocator for OnlineJpl<'_> {
     /// Returns the x coordinate at which the jump stopped (all_1s for adjacent jump).
     unsafe fn jump_x<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64, Direction),
+        edges: &mut Vec<WeightedEdge<'a>>,
         x: i32,
         y: i32,
         cost: f64,
@@ -78,15 +55,10 @@ impl JumpPointLocator for OnlineJpl<'_> {
             new_x = self.target.0;
         }
         if successor {
-            found(
-                (new_x, y),
-                cost + (DX * (new_x - x)) as f64,
-                match DX {
-                    -1 => Direction::West,
-                    1 => Direction::East,
-                    _ => unreachable!(),
-                },
-            );
+            edges.push(WeightedEdge {
+                successor: unsafe { self.node_pool.generate_unchecked((new_x, y)) },
+                cost: cost + (DX * (new_x - x)) as f64,
+            });
         }
         all_1s
     }
@@ -102,7 +74,7 @@ impl JumpPointLocator for OnlineJpl<'_> {
     /// Returns the y coordinate at which the jump stopped (all_1s for adjacent jump).
     unsafe fn jump_y<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64, Direction),
+        edges: &mut Vec<WeightedEdge<'a>>,
         x: i32,
         y: i32,
         cost: f64,
@@ -127,15 +99,10 @@ impl JumpPointLocator for OnlineJpl<'_> {
         if successor {
             // new_y is in-bounds by either the contract of jump_left, or by the conditions
             // of the prior if statement.
-            found(
-                (x, new_y),
-                cost + (DY * (new_y - y)) as f64,
-                match DY {
-                    -1 => Direction::North,
-                    1 => Direction::South,
-                    _ => unreachable!(),
-                },
-            )
+            edges.push(WeightedEdge {
+                successor: unsafe { self.node_pool.generate_unchecked((x, new_y)) },
+                cost: cost + (DY * (new_y - y)) as f64,
+            })
         }
         all_1s
     }
@@ -148,7 +115,7 @@ impl JumpPointLocator for OnlineJpl<'_> {
     /// - `x+DX`, `y+DY` is traversable.
     unsafe fn jump_diag<const DX: i32, const DY: i32>(
         &self,
-        found: &mut impl FnMut((i32, i32), f64, Direction),
+        edges: &mut Vec<WeightedEdge<'a>>,
         mut x: i32,
         mut y: i32,
         mut x_all_1s: i32,
@@ -165,17 +132,10 @@ impl JumpPointLocator for OnlineJpl<'_> {
                 if (x, y) == self.target {
                     // x, y is traversable, which implies x, y is in-bounds.
                     // Coordinates in-bounds of the map are also in-bounds of the node pool.
-                    found(
-                        (x, y),
+                    edges.push(WeightedEdge {
+                        successor: self.node_pool.generate_unchecked((x, y)),
                         cost,
-                        match (DX, DY) {
-                            (-1, -1) => Direction::NorthWest,
-                            (-1, 1) => Direction::SouthWest,
-                            (1, -1) => Direction::NorthEast,
-                            (1, 1) => Direction::SouthEast,
-                            _ => unreachable!(),
-                        },
-                    );
+                    });
                     break;
                 }
 
@@ -185,11 +145,11 @@ impl JumpPointLocator for OnlineJpl<'_> {
                 let xy_t = self.map.map.get_unchecked(x + DX, y + DY);
                 if x_t {
                     // x + DX, y is traversable, so this upholds the preconditions.
-                    x_all_1s = self.jump_x::<DX, DY>(found, x, y, cost, x_all_1s);
+                    x_all_1s = self.jump_x::<DX, DY>(edges, x, y, cost, x_all_1s);
                 }
                 if y_t {
                     // x, y + DY is traversable, so this upholds the preconditions.
-                    y_all_1s = self.jump_y::<DX, DY>(found, x, y, cost, y_all_1s);
+                    y_all_1s = self.jump_y::<DX, DY>(edges, x, y, cost, y_all_1s);
                 }
                 if !(x_t && y_t && xy_t) {
                     break;
@@ -304,6 +264,55 @@ unsafe fn jump_right<const DY: i32>(map: &BitGrid, mut x: i32, y: i32, all_1s: i
             // row must have 57 1-bits in a row if stops == 0, so everything from x to x+56 is
             // traversable. The padding cells cannot have been crossed, so x is still in-bounds.
             x += 56;
+        }
+    }
+}
+
+impl<'a, P: GridStateMapper> Expander<'a> for JpsExpander<'a, P> {
+    type Edge = WeightedEdge<'a>;
+
+    fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
+        let (x, y) = node.get(self.node_pool.state_member());
+
+        let dir = node.get_parent().and_then(|parent| {
+            let (px, py) = parent.get(self.node_pool.state_member());
+            crate::reached_direction((px, py), (x, y))
+        });
+
+        let successors = canonical_successors(self.map.map.get_neighborhood(x, y), dir);
+
+        unsafe {
+            // All jumps have the traversability of the relevant tile checked via successor set.
+            // Remaining preconditions hold trivially.
+
+            let mut north_all_1s = y;
+            let mut south_all_1s = y;
+            let mut east_all_1s = x;
+            let mut west_all_1s = x;
+            if successors.contains(Direction::North) {
+                north_all_1s = self.jump_y::<0, -1>(edges, x, y, 0.0, 0);
+            }
+            if successors.contains(Direction::West) {
+                west_all_1s = self.jump_x::<-1, 0>(edges, x, y, 0.0, 0);
+            }
+            if successors.contains(Direction::South) {
+                south_all_1s = self.jump_y::<0, 1>(edges, x, y, 0.0, 0);
+            }
+            if successors.contains(Direction::East) {
+                east_all_1s = self.jump_x::<1, 0>(edges, x, y, 0.0, 0);
+            }
+            if successors.contains(Direction::NorthWest) {
+                self.jump_diag::<-1, -1>(edges, x, y, west_all_1s, north_all_1s);
+            }
+            if successors.contains(Direction::SouthWest) {
+                self.jump_diag::<-1, 1>(edges, x, y, west_all_1s, south_all_1s);
+            }
+            if successors.contains(Direction::SouthEast) {
+                self.jump_diag::<1, 1>(edges, x, y, east_all_1s, south_all_1s);
+            }
+            if successors.contains(Direction::NorthEast) {
+                self.jump_diag::<1, -1>(edges, x, y, east_all_1s, north_all_1s);
+            }
         }
     }
 }

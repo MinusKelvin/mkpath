@@ -1,13 +1,15 @@
+use enumset::EnumSet;
 use mkpath_grid::{BitGrid, Direction};
 
-mod expander;
-mod jps_plus;
-mod jps;
 mod canonical;
+mod jps;
+mod jps_plus;
+mod jump_db;
 
-pub use self::jps_plus::*;
-pub use self::jps::*;
 pub use self::canonical::*;
+pub use self::jps::*;
+pub use self::jps_plus::*;
+pub use self::jump_db::*;
 
 pub struct JpsGrid {
     map: BitGrid,
@@ -26,7 +28,7 @@ impl From<BitGrid> for JpsGrid {
     }
 }
 
-fn reached_direction(from: (i32, i32), to: (i32, i32)) -> Option<Direction> {
+pub fn reached_direction(from: (i32, i32), to: (i32, i32)) -> Option<Direction> {
     let dx = to.0 - from.0;
     let dy = to.1 - from.1;
     if dx.abs() > dy.abs() {
@@ -58,6 +60,155 @@ fn reached_direction(from: (i32, i32), to: (i32, i32)) -> Option<Direction> {
     }
 }
 
+pub fn canonical_successors(
+    nb: EnumSet<Direction>,
+    going: Option<Direction>,
+) -> EnumSet<Direction> {
+    let mut successors = EnumSet::empty();
+    use Direction::*;
+    match going {
+        Some(North) => {
+            if nb.contains(North) {
+                successors |= North;
+            }
+            if nb & (SouthWest | West) == West {
+                successors |= West;
+                if nb.is_superset(North | NorthWest) {
+                    successors |= NorthWest;
+                }
+            }
+            if nb & (SouthEast | East) == East {
+                successors |= East;
+                if nb.is_superset(North | NorthEast) {
+                    successors |= NorthEast;
+                }
+            }
+        }
+        Some(West) => {
+            if nb.contains(West) {
+                successors |= West;
+            }
+            if nb & (NorthEast | North) == North {
+                successors |= North;
+                if nb.is_superset(West | NorthWest) {
+                    successors |= NorthWest;
+                }
+            }
+            if nb & (SouthEast | South) == South {
+                successors |= South;
+                if nb.is_superset(West | SouthWest) {
+                    successors |= SouthWest;
+                }
+            }
+        }
+        Some(South) => {
+            if nb.contains(South) {
+                successors |= South;
+            }
+            if nb & (NorthWest | West) == West {
+                successors |= West;
+                if nb.is_superset(South | SouthWest) {
+                    successors |= SouthWest;
+                }
+            }
+            if nb & (NorthEast | East) == East {
+                successors |= East;
+                if nb.is_superset(South | SouthEast) {
+                    successors |= SouthEast;
+                }
+            }
+        }
+        Some(East) => {
+            if nb.contains(East) {
+                successors |= East;
+            }
+            if nb & (NorthWest | North) == North {
+                successors |= North;
+                if nb.is_superset(East | NorthEast) {
+                    successors |= NorthEast;
+                }
+            }
+            if nb & (SouthWest | South) == South {
+                successors |= South;
+                if nb.is_superset(East | SouthEast) {
+                    successors |= SouthEast;
+                }
+            }
+        }
+        Some(NorthWest) => {
+            if nb.contains(North) {
+                successors |= North;
+            }
+            if nb.contains(West) {
+                successors |= West;
+            }
+            if nb.is_superset(North | West | NorthWest) {
+                successors |= NorthWest;
+            }
+        }
+        Some(SouthWest) => {
+            if nb.contains(South) {
+                successors |= South;
+            }
+            if nb.contains(West) {
+                successors |= West;
+            }
+            if nb.is_superset(South | West | SouthWest) {
+                successors |= SouthWest;
+            }
+        }
+        Some(SouthEast) => {
+            if nb.contains(South) {
+                successors |= South;
+            }
+            if nb.contains(East) {
+                successors |= East;
+            }
+            if nb.is_superset(South | East | SouthEast) {
+                successors |= SouthEast;
+            }
+        }
+        Some(NorthEast) => {
+            if nb.contains(North) {
+                successors |= North;
+            }
+            if nb.contains(East) {
+                successors |= East;
+            }
+            if nb.is_superset(North | East | NorthEast) {
+                successors |= NorthEast;
+            }
+        }
+        None => {
+            if nb.contains(North) {
+                successors |= North;
+            }
+            if nb.contains(West) {
+                successors |= West;
+            }
+            if nb.contains(South) {
+                successors |= South;
+            }
+            if nb.contains(East) {
+                successors |= East;
+            }
+            if nb.is_superset(North | West | NorthWest) {
+                successors |= NorthWest;
+            }
+            if nb.is_superset(South | West | SouthWest) {
+                successors |= SouthWest;
+            }
+            if nb.is_superset(South | East | SouthEast) {
+                successors |= SouthEast;
+            }
+            if nb.is_superset(North | East | NorthEast) {
+                successors |= NorthEast;
+            }
+        }
+    }
+    successors
+}
+
 fn skipped_past<const D: i32>(start: i32, end: i32, target: i32) -> bool {
     in_direction::<D>(start, target) && in_direction::<D>(target, end)
 }
@@ -68,63 +219,4 @@ fn in_direction<const D: i32>(from: i32, to: i32) -> bool {
         1 => from < to,
         _ => unreachable!(),
     }
-}
-
-fn signed_distance<const D: i32>(from: i32, to: i32) -> i32 {
-    (to - from) * D
-}
-
-trait JumpPointLocator {
-    fn map(&self) -> &BitGrid;
-
-    /// Jumps horizontally.
-    ///
-    /// Preconditions:
-    /// - `x`, `y` are in-bounds of `map`.
-    /// - `DX` is -1 or 1.
-    /// - `DY` is -1, 0, or 1.
-    /// - `x+DX`, `y` is traversable.
-    ///
-    /// Returns the x coordinate at which the jump stopped (all_1s for adjacent jump).
-    unsafe fn jump_x<const DX: i32, const DY: i32>(
-        &self,
-        found: &mut impl FnMut((i32, i32), f64, Direction),
-        x: i32,
-        y: i32,
-        cost: f64,
-        all_1s: i32,
-    ) -> i32;
-
-    /// Jumps vertically.
-    ///
-    /// Preconditions:
-    /// - `x`, `y` are in-bounds of `map`.
-    /// - `DY` is -1 or 1.
-    /// - `DX` is -1, 0, or 1.
-    /// - `x`, `y+DY` is traversable.
-    ///
-    /// Returns the y coordinate at which the jump stopped (all_1s for adjacent jump).
-    unsafe fn jump_y<const DX: i32, const DY: i32>(
-        &self,
-        found: &mut impl FnMut((i32, i32), f64, Direction),
-        x: i32,
-        y: i32,
-        cost: f64,
-        all_1s: i32,
-    ) -> i32;
-
-    /// Jumps diagonally.
-    ///
-    /// Preconditions:
-    /// - `x`, `y` are in-bounds of `map`.
-    /// - `DX`, `DY` are -1 or 1.
-    /// - `x+DX`, `y+DY` is traversable.
-    unsafe fn jump_diag<const DX: i32, const DY: i32>(
-        &self,
-        found: &mut impl FnMut((i32, i32), f64, Direction),
-        x: i32,
-        y: i32,
-        x_all_1s: i32,
-        y_all_1s: i32,
-    );
 }
