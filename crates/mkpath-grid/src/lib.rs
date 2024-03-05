@@ -45,6 +45,21 @@ impl TryFrom<usize> for Direction {
     }
 }
 
+impl Direction {
+    pub fn backwards(self) -> Direction {
+        match self {
+            Direction::North => Direction::South,
+            Direction::West => Direction::East,
+            Direction::South => Direction::North,
+            Direction::East => Direction::West,
+            Direction::NorthWest => Direction::SouthEast,
+            Direction::SouthWest => Direction::NorthEast,
+            Direction::SouthEast => Direction::NorthWest,
+            Direction::NorthEast => Direction::SouthWest,
+        }
+    }
+}
+
 pub struct GridEdge<'a> {
     pub successor: NodeRef<'a>,
     pub cost: f64,

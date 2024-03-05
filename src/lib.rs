@@ -3,6 +3,7 @@ pub use mkpath_core::*;
 pub use mkpath_cpd as cpd;
 pub use mkpath_grid as grid;
 pub use mkpath_jps as jps;
+pub use mkpath_topping as topping;
 
 pub struct AStarSearcher {
     g: NodeMemberPointer<f64>,
