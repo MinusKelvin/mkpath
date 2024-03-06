@@ -2,25 +2,23 @@ use std::f64::consts::SQRT_2;
 
 use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
-use mkpath_grid::GridStateMapper;
+use mkpath_cpd::StateIdMapper;
+use mkpath_grid::{Direction, GridStateMapper};
+use mkpath_jps::canonical_successors;
 
-use crate::{canonical_successors, Direction, JumpDatabase};
+use crate::ToppingPlusOracle;
 
-/// Jump Point Search Plus expander.
-///
-/// Harabor, D., & Grastien, A. (2014, May). Improving jump point search. In Proceedings of the
-/// International Conference on Automated Planning and Scheduling (Vol. 24, pp. 128-135).
-pub struct JpsPlusExpander<'a, P> {
+pub struct TopsExpander<'a, P> {
     node_pool: &'a P,
-    jump_db: &'a JumpDatabase,
+    oracle: &'a ToppingPlusOracle,
     target: (i32, i32),
 }
 
-impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
-    pub fn new(jump_db: &'a JumpDatabase, node_pool: &'a P, target: (i32, i32)) -> Self {
-        JpsPlusExpander {
+impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
+    pub fn new(oracle: &'a ToppingPlusOracle, node_pool: &'a P, target: (i32, i32)) -> Self {
+        TopsExpander {
             node_pool,
-            jump_db,
+            oracle,
             target,
         }
     }
@@ -42,7 +40,11 @@ impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
             _ => unreachable!(),
         };
 
-        if let Some(dist) = self.jump_db.ortho_jump_unchecked(x, y, dir, self.target) {
+        if let Some(dist) = self
+            .oracle
+            .jump_db
+            .ortho_jump_unchecked(x, y, dir, self.target)
+        {
             edges.push(WeightedEdge {
                 successor: self
                     .node_pool
@@ -69,10 +71,25 @@ impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
         };
 
         let mut cost = 0.0;
-        while let Some((dist, _)) = self.jump_db.diagonal_jump_unchecked(x, y, dir, self.target) {
+        while let Some((dist, turn)) =
+            self.oracle
+                .jump_db
+                .diagonal_jump_unchecked(x, y, dir, self.target)
+        {
             x += dx * dist;
             y += dy * dist;
             cost += dist as f64 * SQRT_2;
+
+            if let Some((dir, dist)) = turn {
+                if dir == dir_x {
+                    x += dx * dist;
+                } else if dir == dir_y {
+                    y += dy * dist;
+                } else {
+                    unreachable!()
+                }
+                cost += dist as f64;
+            }
 
             if (x, y) == self.target {
                 edges.push(WeightedEdge {
@@ -82,13 +99,23 @@ impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
                 break;
             }
 
-            self.jump_ortho(x, y, dir_x, cost, edges);
-            self.jump_ortho(x, y, dir_y, cost, edges);
+            if let Some(first_move) = self.oracle.query((x, y), self.target) {
+                if first_move == dir_x {
+                    self.jump_ortho(x, y, dir_x, cost, edges);
+                } else if first_move == dir_y {
+                    self.jump_ortho(x, y, dir_y, cost, edges);
+                } else if first_move != dir {
+                    break;
+                }
+            } else {
+                self.jump_ortho(x, y, dir_x, cost, edges);
+                self.jump_ortho(x, y, dir_y, cost, edges);
+            }
         }
     }
 }
 
-impl<'a, P: GridStateMapper> Expander<'a> for JpsPlusExpander<'a, P> {
+impl<'a, P: GridStateMapper> Expander<'a> for TopsExpander<'a, P> {
     type Edge = WeightedEdge<'a>;
 
     fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
@@ -96,10 +123,21 @@ impl<'a, P: GridStateMapper> Expander<'a> for JpsPlusExpander<'a, P> {
 
         let dir = node.get_parent().and_then(|parent| {
             let (px, py) = parent.get(self.node_pool.state_member());
-            crate::reached_direction((px, py), (x, y))
+            mkpath_jps::reached_direction((px, py), (x, y))
         });
 
-        let successors = canonical_successors(self.jump_db.map().get_neighborhood(x, y), dir);
+        let mut successors =
+            canonical_successors(self.oracle.jump_db.map().get_neighborhood(x, y), dir);
+
+        let first_move: Option<Direction> = self.oracle.partial_cpd.get(&(x, y)).and_then(|row| {
+            row.lookup(self.oracle.mapper.state_to_id(self.target))
+                .try_into()
+                .ok()
+        });
+
+        if let Some(dir) = first_move {
+            successors &= dir;
+        }
 
         unsafe {
             // All jumps have the traversability of the relevant tile checked via successor set.

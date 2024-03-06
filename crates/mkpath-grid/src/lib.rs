@@ -58,6 +58,26 @@ impl Direction {
             Direction::NorthEast => Direction::SouthWest,
         }
     }
+
+    pub fn vector(self) -> (i32, i32) {
+        match self {
+            Direction::North => (0, -1),
+            Direction::West => (-1, 0),
+            Direction::South => (0, 1),
+            Direction::East => (1, 0),
+            Direction::NorthWest => (-1, -1),
+            Direction::SouthWest => (-1, 1),
+            Direction::SouthEast => (1, 1),
+            Direction::NorthEast => (1, -1),
+        }
+    }
+
+    pub fn orthogonal(self) -> bool {
+        matches!(
+            self,
+            Direction::North | Direction::East | Direction::South | Direction::West
+        )
+    }
 }
 
 pub struct GridEdge<'a> {

@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mkpath::cpd::{CpdRow, FirstMoveSearcher, StateIdMapper};
 use mkpath::grid::{EightConnectedExpander, Grid, GridPool};
-use mkpath::{NodeBuilder, PriorityQueueFactory};
+use mkpath::NodeBuilder;
 use mkpath_cpd::BucketQueueFactory;
 use mkpath_grid::Direction;
 use rayon::prelude::*;

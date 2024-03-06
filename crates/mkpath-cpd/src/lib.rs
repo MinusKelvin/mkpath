@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::io::{Read, Write};
 
 use mkpath_core::traits::{Cost, EdgeId, Expander, OpenList, Successor};
-use mkpath_core::{NodeBuilder, NodeMemberPointer, NodeRef, PriorityQueueFactory};
+use mkpath_core::{NodeBuilder, NodeMemberPointer, NodeRef};
 
 pub trait StateIdMapper {
     type State;
@@ -172,6 +172,7 @@ impl FirstMoveSearcher {
             );
             node.set(g, edge.cost());
             node.set(first_move, 1 << edge.edge_id());
+            node.set_parent(Some(start));
             open.relaxed(node);
         }
 
@@ -187,6 +188,7 @@ impl FirstMoveSearcher {
                     // Shorter path to node; update g and first move field.
                     successor.set(g, new_g);
                     successor.set(first_move, node.get(first_move));
+                    successor.set_parent(Some(node));
                     open.relaxed(successor);
                 } else if new_g == successor.get(g) {
                     // In case of tie, multiple first moves may allow optimal paths.
@@ -262,10 +264,11 @@ impl<'a> OpenList<'a> for BucketQueue<'a> {
             }
         }
 
-        if new_bucket - self.bucket_number >= self.queue.len() as u32 {
-            self.queue.resize((new_bucket - self.bucket_number + 1) as usize, vec![]);
+        let new_index = (new_bucket - self.bucket_number) as usize;
+        if new_index >= self.queue.len() {
+            self.queue.resize(new_index + 1, vec![]);
         }
-        let bucket = &mut self.queue[(new_bucket - self.bucket_number) as usize];
+        let bucket = &mut self.queue[new_index];
         node.set(self.bucket_pos, (new_bucket, bucket.len() as u32));
         bucket.push(node);
     }

@@ -1,14 +1,18 @@
-use std::io::Write;
+use std::io::{Read, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use ahash::{HashMap, HashSet};
 use enumset::EnumSet;
-use mkpath_core::{NodeBuilder, PriorityQueueFactory};
+use mkpath_core::NodeBuilder;
 use mkpath_cpd::{BucketQueueFactory, CpdRow, FirstMoveSearcher, StateIdMapper};
 use mkpath_grid::{BitGrid, Direction, EightConnectedExpander, Grid, GridPool};
 use mkpath_jps::{canonical_successors, CanonicalGridExpander, JumpDatabase};
 use rayon::prelude::*;
+
+mod tops_expander;
+
+pub use self::tops_expander::*;
 
 pub struct ToppingPlusOracle {
     mapper: GridMapper,
@@ -114,12 +118,51 @@ impl ToppingPlusOracle {
         }
     }
 
-    pub fn load(map: BitGrid, from: &mut impl Write) -> std::io::Result<Self> {
-        todo!()
+    pub fn load(map: BitGrid, from: &mut impl Read) -> std::io::Result<Self> {
+        let jump_db = JumpDatabase::new(map);
+        let mapper = GridMapper::load(from)?;
+
+        let mut bytes = [0; 4];
+        from.read_exact(&mut bytes)?;
+        let num_jps = u32::from_le_bytes(bytes) as usize;
+
+        let mut partial_cpd = HashMap::default();
+        for _ in 0..num_jps {
+            from.read_exact(&mut bytes)?;
+            let x = i32::from_le_bytes(bytes);
+            from.read_exact(&mut bytes)?;
+            let y = i32::from_le_bytes(bytes);
+
+            assert!(x >= 0);
+            assert!(y >= 0);
+            assert!(x < jump_db.map().width());
+            assert!(y < jump_db.map().height());
+
+            partial_cpd.insert((x, y), CpdRow::load(from)?);
+        }
+
+        Ok(ToppingPlusOracle {
+            mapper,
+            jump_db,
+            partial_cpd,
+        })
     }
 
     pub fn save(&self, to: &mut impl Write) -> std::io::Result<()> {
-        todo!()
+        self.mapper.save(to)?;
+        to.write_all(&u32::to_le_bytes(self.partial_cpd.len() as u32))?;
+        for ((x, y), row) in &self.partial_cpd {
+            to.write_all(&x.to_le_bytes())?;
+            to.write_all(&y.to_le_bytes())?;
+            row.save(to)?;
+        }
+        Ok(())
+    }
+
+    pub fn query(&self, pos: (i32, i32), target: (i32, i32)) -> Option<Direction> {
+        self.partial_cpd
+            .get(&pos)
+            .and_then(|row| row.lookup(self.mapper.state_to_id(target)).try_into().ok())
     }
 }
 
@@ -186,6 +229,41 @@ impl GridMapper {
             grid,
             array: array.into_boxed_slice(),
         }
+    }
+
+    pub fn load(from: &mut impl Read) -> std::io::Result<Self> {
+        let mut bytes = [0; 4];
+        from.read_exact(&mut bytes)?;
+        let len = u32::from_le_bytes(bytes) as usize;
+
+        from.read_exact(&mut bytes)?;
+        let width = i32::from_le_bytes(bytes);
+        from.read_exact(&mut bytes)?;
+        let height = i32::from_le_bytes(bytes);
+
+        let mut grid = Grid::new(width, height, |_, _| usize::MAX);
+        let mut array = vec![(0, 0); len].into_boxed_slice();
+        for id in 0..len {
+            from.read_exact(&mut bytes)?;
+            let x = i32::from_le_bytes(bytes);
+            from.read_exact(&mut bytes)?;
+            let y = i32::from_le_bytes(bytes);
+            grid[(x, y)] = id;
+            array[id] = (x, y);
+        }
+
+        Ok(GridMapper { grid, array })
+    }
+
+    pub fn save(&self, to: &mut impl Write) -> std::io::Result<()> {
+        to.write_all(&(self.array.len() as u32).to_le_bytes())?;
+        to.write_all(&self.grid.width().to_le_bytes())?;
+        to.write_all(&self.grid.height().to_le_bytes())?;
+        for (x, y) in self.array.iter() {
+            to.write_all(&x.to_le_bytes())?;
+            to.write_all(&y.to_le_bytes())?;
+        }
+        Ok(())
     }
 }
 
