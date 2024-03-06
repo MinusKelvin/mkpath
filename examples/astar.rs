@@ -13,6 +13,9 @@ struct Options {
 
 fn main() {
     let opt = Options::from_args();
+
+    let t1 = std::time::Instant::now();
+
     let scen = movingai::read_scenario(&opt.scen).unwrap();
     let map = movingai::read_bitgrid(&scen.map).unwrap();
 
@@ -21,6 +24,8 @@ fn main() {
     let mut astar = AStarSearcher::new(&mut builder);
     let mut open_list_factory = PriorityQueueFactory::new(&mut builder);
     let mut pool = GridPool::new(builder.build(), state, map.width(), map.height());
+
+    let t2 = std::time::Instant::now();
 
     for problem in &scen.instances {
         pool.reset();
@@ -44,4 +49,7 @@ fn main() {
             println!("failed to find path");
         }
     }
+
+    let t3 = std::time::Instant::now();
+    eprintln!("Load: {:<10.2?} Search: {:.2?}", t2 - t1, t3 - t2);
 }

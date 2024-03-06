@@ -29,11 +29,15 @@ fn main() {
         cpd_file.as_mut_os_string().push(".mkp-cpd");
         build_cpd(&opt.path, &cpd_file).unwrap();
     } else {
+        let t1 = std::time::Instant::now();
+    
         let scen = movingai::read_scenario(&opt.path).unwrap();
         let map = movingai::read_bitgrid(&scen.map).unwrap();
         let mut cpd_file = scen.map.clone();
         cpd_file.as_mut_os_string().push(".mkp-cpd");
         let (mapper, rows) = load_cpd(&cpd_file, map.width(), map.height()).unwrap();
+
+        let t2 = std::time::Instant::now();
 
         for problem in scen.instances {
             let mut cost = 0.0;
@@ -64,6 +68,9 @@ fn main() {
 
             println!("{cost:.2} {path:?}");
         }
+
+        let t3 = std::time::Instant::now();
+        eprintln!("Load: {:<10.2?} Search: {:.2?}", t2 - t1, t3 - t2);
     }
 }
 
@@ -156,24 +163,21 @@ fn build_cpd(map: &Path, output: &Path) -> std::io::Result<()> {
                     *state,
                 );
                 let progress = progress.fetch_add(1, Ordering::SeqCst) + 1;
-                if progress & 0xF == 0 {
-                    let progress = progress as f64 / mapper.num_ids() as f64;
-                    let d = t.elapsed();
-                    let ttg = (d.as_secs_f64() / progress - d.as_secs_f64()) as u64;
-                    print!(
-                        "\r{:4.1}% ETA {} hr {:2} min {:2} sec",
-                        (progress * 1000.0).round() / 10.0,
-                        ttg / 60 / 60,
-                        ttg / 60 % 60,
-                        ttg % 60,
-                    );
-                    std::io::stdout().flush().unwrap();
-                }
+                let progress = progress as f64 / mapper.num_ids() as f64;
+                let d = t.elapsed();
+                let ttg = (d.as_secs_f64() / progress - d.as_secs_f64()) as u64;
+                print!(
+                    "\r{:4.1}% ETA {} hr {:2} min {:2} sec",
+                    (progress * 1000.0).round() / 10.0,
+                    ttg / 60 / 60,
+                    ttg / 60 % 60,
+                    ttg % 60,
+                );
+                std::io::stdout().flush().unwrap();
                 result
             },
         )
         .collect_into_vec(&mut rows);
-    println!();
 
     let mut output = BufWriter::new(File::create(output)?);
 

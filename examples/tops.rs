@@ -44,6 +44,8 @@ fn main() {
             .save(&mut BufWriter::new(File::create(cpd_file).unwrap()))
             .unwrap();
     } else {
+        let t1 = std::time::Instant::now();
+    
         let scen = movingai::read_scenario(&opt.path).unwrap();
         let map = movingai::read_bitgrid(&scen.map).unwrap();
 
@@ -58,6 +60,8 @@ fn main() {
         let mut astar = AStarSearcher::new(&mut builder);
         let mut open_list_factory = PriorityQueueFactory::new(&mut builder);
         let mut pool = HashPool::new(builder.build(), state);
+
+        let t2 = std::time::Instant::now();
 
         for problem in &scen.instances {
             pool.reset();
@@ -82,5 +86,8 @@ fn main() {
                 break;
             }
         }
+
+        let t3 = std::time::Instant::now();
+        eprintln!("Load: {:<10.2?} Search: {:.2?}", t2 - t1, t3 - t2);
     }
 }
