@@ -1,8 +1,6 @@
-use std::f64::consts::SQRT_2;
-
 use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
-use mkpath_grid::GridStateMapper;
+use mkpath_grid::{GridStateMapper, SAFE_SQRT_2};
 
 use crate::{canonical_successors, Direction, JumpDatabase};
 
@@ -72,7 +70,7 @@ impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
         while let Some((dist, _)) = self.jump_db.diagonal_jump_unchecked(x, y, dir, self.target) {
             x += dx * dist;
             y += dy * dist;
-            cost += dist as f64 * SQRT_2;
+            cost += dist as f64 * SAFE_SQRT_2;
 
             if (x, y) == self.target {
                 edges.push(WeightedEdge {

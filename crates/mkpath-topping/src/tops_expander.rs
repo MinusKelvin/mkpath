@@ -1,9 +1,7 @@
-use std::f64::consts::SQRT_2;
-
 use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
 use mkpath_cpd::StateIdMapper;
-use mkpath_grid::{Direction, GridStateMapper};
+use mkpath_grid::{Direction, GridStateMapper, SAFE_SQRT_2};
 use mkpath_jps::canonical_successors;
 
 use crate::ToppingPlusOracle;
@@ -78,7 +76,7 @@ impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
         {
             x += dx * dist;
             y += dy * dist;
-            cost += dist as f64 * SQRT_2;
+            cost += dist as f64 * SAFE_SQRT_2;
 
             if let Some((dir, dist)) = turn {
                 if dir == dir_x {

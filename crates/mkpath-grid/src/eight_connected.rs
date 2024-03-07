@@ -1,11 +1,9 @@
 //! Types and utilities for working with 8-connected grid maps.
 
-use std::f64::consts::SQRT_2;
-
 use mkpath_core::traits::Expander;
 use mkpath_core::NodeRef;
 
-use crate::{BitGrid, Direction, GridEdge, GridStateMapper};
+use crate::{BitGrid, Direction, GridEdge, GridStateMapper, SAFE_SQRT_2};
 
 pub struct EightConnectedExpander<'a, P> {
     map: &'a BitGrid,
@@ -75,7 +73,7 @@ impl<'a, P: GridStateMapper> Expander<'a> for EightConnectedExpander<'a, P> {
                 if north_traversable && self.map.get_unchecked(x - 1, y - 1) {
                     edges.push(GridEdge {
                         successor: self.node_pool.generate_unchecked((x - 1, y - 1)),
-                        cost: SQRT_2,
+                        cost: SAFE_SQRT_2,
                         direction: Direction::NorthWest,
                     });
                 }
@@ -83,7 +81,7 @@ impl<'a, P: GridStateMapper> Expander<'a> for EightConnectedExpander<'a, P> {
                 if south_traversable && self.map.get_unchecked(x - 1, y + 1) {
                     edges.push(GridEdge {
                         successor: self.node_pool.generate_unchecked((x - 1, y + 1)),
-                        cost: SQRT_2,
+                        cost: SAFE_SQRT_2,
                         direction: Direction::SouthWest,
                     });
                 }
@@ -98,7 +96,7 @@ impl<'a, P: GridStateMapper> Expander<'a> for EightConnectedExpander<'a, P> {
                 if north_traversable && self.map.get_unchecked(x + 1, y - 1) {
                     edges.push(GridEdge {
                         successor: self.node_pool.generate_unchecked((x + 1, y - 1)),
-                        cost: SQRT_2,
+                        cost: SAFE_SQRT_2,
                         direction: Direction::NorthEast,
                     });
                 }
@@ -106,7 +104,7 @@ impl<'a, P: GridStateMapper> Expander<'a> for EightConnectedExpander<'a, P> {
                 if south_traversable && self.map.get_unchecked(x + 1, y + 1) {
                     edges.push(GridEdge {
                         successor: self.node_pool.generate_unchecked((x + 1, y + 1)),
-                        cost: SQRT_2,
+                        cost: SAFE_SQRT_2,
                         direction: Direction::SouthEast,
                     });
                 }
@@ -120,5 +118,5 @@ pub fn octile_distance(from: (i32, i32), to: (i32, i32)) -> f64 {
     let dy = (from.1 - to.1).abs();
     let diagonals = dx.min(dy);
     let orthos = dx.max(dy) - diagonals;
-    orthos as f64 + diagonals as f64 * SQRT_2
+    orthos as f64 + diagonals as f64 * SAFE_SQRT_2
 }

@@ -1,8 +1,6 @@
-use std::f64::consts::SQRT_2;
-
 use mkpath_core::traits::Expander;
 use mkpath_core::NodeRef;
-use mkpath_grid::{BitGrid, Direction, GridEdge, GridStateMapper};
+use mkpath_grid::{BitGrid, Direction, GridEdge, GridStateMapper, SAFE_SQRT_2};
 
 use crate::canonical_successors;
 
@@ -65,28 +63,28 @@ impl<'a, P: GridStateMapper> Expander<'a> for CanonicalGridExpander<'a, P> {
             if successors.contains(Direction::NorthWest) {
                 edges.push(GridEdge {
                     successor: self.node_pool.generate_unchecked((x - 1, y - 1)),
-                    cost: SQRT_2,
+                    cost: SAFE_SQRT_2,
                     direction: Direction::NorthWest,
                 });
             }
             if successors.contains(Direction::SouthWest) {
                 edges.push(GridEdge {
                     successor: self.node_pool.generate_unchecked((x - 1, y + 1)),
-                    cost: SQRT_2,
+                    cost: SAFE_SQRT_2,
                     direction: Direction::SouthWest,
                 });
             }
             if successors.contains(Direction::SouthEast) {
                 edges.push(GridEdge {
                     successor: self.node_pool.generate_unchecked((x + 1, y + 1)),
-                    cost: SQRT_2,
+                    cost: SAFE_SQRT_2,
                     direction: Direction::SouthEast,
                 });
             }
             if successors.contains(Direction::NorthEast) {
                 edges.push(GridEdge {
                     successor: self.node_pool.generate_unchecked((x + 1, y - 1)),
-                    cost: SQRT_2,
+                    cost: SAFE_SQRT_2,
                     direction: Direction::NorthEast,
                 });
             }

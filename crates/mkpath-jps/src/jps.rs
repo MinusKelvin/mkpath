@@ -1,8 +1,6 @@
-use std::f64::consts::SQRT_2;
-
 use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
-use mkpath_grid::{BitGrid, Direction, GridStateMapper};
+use mkpath_grid::{BitGrid, Direction, GridStateMapper, SAFE_SQRT_2};
 
 use crate::{canonical_successors, skipped_past, JpsGrid};
 
@@ -127,7 +125,7 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
             loop {
                 x += DX;
                 y += DY;
-                cost += SQRT_2;
+                cost += SAFE_SQRT_2;
 
                 if (x, y) == self.target {
                     // x, y is traversable, which implies x, y is in-bounds.

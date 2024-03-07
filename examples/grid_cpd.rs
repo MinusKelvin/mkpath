@@ -1,4 +1,3 @@
-use std::f64::consts::SQRT_2;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
@@ -8,7 +7,7 @@ use mkpath::cpd::{CpdRow, FirstMoveSearcher, StateIdMapper};
 use mkpath::grid::{EightConnectedExpander, Grid, GridPool};
 use mkpath::NodeBuilder;
 use mkpath_cpd::BucketQueueFactory;
-use mkpath_grid::Direction;
+use mkpath_grid::{Direction, SAFE_SQRT_2};
 use rayon::prelude::*;
 use structopt::StructOpt;
 
@@ -60,7 +59,7 @@ fn main() {
                     Direction::NorthEast => path.push((state.0 + 1, state.1 - 1)),
                 }
                 if dir > 3 {
-                    cost += SQRT_2;
+                    cost += SAFE_SQRT_2;
                 } else {
                     cost += 1.0;
                 }
