@@ -83,7 +83,6 @@ fn main() {
                 println!("{cost:.2} {path:?}");
             } else {
                 println!("failed to find path");
-                break;
             }
         }
 

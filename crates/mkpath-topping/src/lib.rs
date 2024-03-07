@@ -2,12 +2,13 @@ use std::io::{Read, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use ahash::{HashMap, HashSet};
+use ahash::HashMap;
 use enumset::EnumSet;
+use mkpath_core::traits::{Expander, OpenList};
 use mkpath_core::NodeBuilder;
-use mkpath_cpd::{BucketQueueFactory, CpdRow, FirstMoveSearcher, StateIdMapper};
+use mkpath_cpd::{BucketQueueFactory, CpdRow, StateIdMapper};
 use mkpath_grid::{BitGrid, Direction, EightConnectedExpander, Grid, GridPool};
-use mkpath_jps::{canonical_successors, CanonicalGridExpander, JumpDatabase};
+use mkpath_jps::{canonical_successors, JumpDatabase};
 use rayon::prelude::*;
 
 mod tops_expander;
@@ -33,7 +34,7 @@ impl ToppingPlusOracle {
 
         let diagonals = NorthWest | SouthWest | NorthEast | SouthEast;
 
-        let mut jump_points = HashSet::default();
+        let mut jump_points = HashMap::default();
         for y in 0..map.height() {
             for x in 0..map.width() {
                 if !map.get(x, y) {
@@ -41,7 +42,7 @@ impl ToppingPlusOracle {
                 }
 
                 let nb = map.get_neighborhood(x, y);
-                let mut diagonal_jumps = EnumSet::empty();
+                let mut jp_successors = EnumSet::empty();
                 let mut is_jp = false;
 
                 for dir in [North, South, East, West] {
@@ -51,23 +52,24 @@ impl ToppingPlusOracle {
                     let dirs = canonical_successors(nb, Some(dir));
                     if dirs & dir != dirs {
                         is_jp = true;
-                        diagonal_jumps |= dirs & diagonals;
+                        jp_successors |= dirs;
                     }
                 }
 
                 if is_jp {
-                    jump_points.insert((x, y));
+                    *jump_points.entry((x, y)).or_default() |= jp_successors;
 
-                    if diagonal_jumps.contains(NorthWest) {
+                    jp_successors &= diagonals;
+                    if jp_successors.contains(NorthWest) {
                         collect_diagonal_jps(&mut jump_points, &jump_db, x, y, NorthWest);
                     }
-                    if diagonal_jumps.contains(SouthWest) {
+                    if jp_successors.contains(SouthWest) {
                         collect_diagonal_jps(&mut jump_points, &jump_db, x, y, SouthWest);
                     }
-                    if diagonal_jumps.contains(SouthEast) {
+                    if jp_successors.contains(SouthEast) {
                         collect_diagonal_jps(&mut jump_points, &jump_db, x, y, SouthEast);
                     }
-                    if diagonal_jumps.contains(NorthEast) {
+                    if jp_successors.contains(NorthEast) {
                         collect_diagonal_jps(&mut jump_points, &jump_db, x, y, NorthEast);
                     }
                 }
@@ -84,7 +86,9 @@ impl ToppingPlusOracle {
                 || {
                     let mut builder = NodeBuilder::new();
                     let state = builder.add_field((-1, -1));
-                    let searcher = FirstMoveSearcher::new(&mut builder);
+                    let successors = builder.add_field(EnumSet::all());
+                    let first_move = builder.add_field(EnumSet::all());
+                    let g = builder.add_field(f64::INFINITY);
                     let pqueue = BucketQueueFactory::new(&mut builder);
                     let pool = GridPool::new(
                         builder.build_with_capacity(mapper.array.len()),
@@ -92,18 +96,88 @@ impl ToppingPlusOracle {
                         map.width(),
                         map.height(),
                     );
-                    (state, searcher, pqueue, pool)
+                    (state, successors, g, first_move, pqueue, pool)
                 },
-                |(state, searcher, pqueue, pool), &source| {
+                |&mut (state, successors, g, first_move, ref pqueue, ref mut pool),
+                 (&source, &canonical_first_moves)| {
                     pool.reset();
-                    let result = CpdRow::compute(
-                        &mapper,
-                        searcher,
-                        CanonicalGridExpander::new(jump_db.map(), pool),
-                        pqueue.new_queue(searcher.g(), 0.999),
-                        pool.generate(source),
-                        *state,
-                    );
+
+                    let mut first_moves = vec![EnumSet::all(); mapper.num_ids()];
+                    let mut edges = vec![];
+                    let mut expander = EightConnectedExpander::new(&map, pool);
+                    let mut open = pqueue.new_queue(g, 0.999);
+
+                    let start_node = pool.generate(source);
+                    start_node.set(g, 0.0);
+
+                    expander.expand(start_node, &mut edges);
+                    for edge in &edges {
+                        let node = edge.successor;
+                        node.set(g, edge.cost);
+                        node.set(first_move, EnumSet::only(edge.direction));
+                        node.set_parent(Some(start_node));
+                        let (x, y) = node.get(state);
+                        node.set(
+                            successors,
+                            canonical_successors(map.get_neighborhood(x, y), Some(edge.direction)),
+                        );
+                        open.relaxed(node);
+                    }
+
+                    while let Some(node) = open.next() {
+                        let fm = node.get(first_move);
+                        first_moves[mapper.state_to_id(node.get(state))] =
+                            if fm.is_disjoint(canonical_first_moves) {
+                                fm
+                            } else {
+                                fm & canonical_first_moves
+                            };
+                        edges.clear();
+                        expander.expand(node, &mut edges);
+                        for edge in &edges {
+                            if !node.get(successors).contains(edge.direction) {
+                                continue;
+                            }
+                            let successor = edge.successor;
+                            let (x, y) = successor.get(state);
+                            let new_g = edge.cost + node.get(g);
+                            // TODO: think about floating point round-off error
+                            let approx_eq = (new_g - successor.get(g)).abs() < 0.0000001;
+                            if !approx_eq && new_g < successor.get(g) {
+                                // Shorter path to node; overwrite first move and successors.
+                                successor.set(g, new_g);
+                                successor.set(first_move, node.get(first_move));
+                                successor.set(
+                                    successors,
+                                    canonical_successors(
+                                        map.get_neighborhood(x, y),
+                                        Some(edge.direction),
+                                    ),
+                                );
+                                successor.set_parent(Some(node));
+                                open.relaxed(successor);
+                            } else if approx_eq {
+                                // In case of tie, multiple first moves may allow optimal paths.
+                                // Additionally, there are more canonical successors to consider
+                                // when the node is expanded.
+                                successor.set(
+                                    first_move,
+                                    successor.get(first_move) | node.get(first_move),
+                                );
+                                successor.set(
+                                    successors,
+                                    successor.get(successors)
+                                        | canonical_successors(
+                                            map.get_neighborhood(x, y),
+                                            Some(edge.direction),
+                                        ),
+                                );
+                            }
+                        }
+                    }
+
+                    let result = CpdRow::compress(first_moves.into_iter().map(|set| set.as_u64()));
+
                     let progress = progress.fetch_add(1, Ordering::Relaxed) + 1;
                     progress_callback(progress, num_jps, start.elapsed());
                     (source, result)
@@ -167,7 +241,7 @@ impl ToppingPlusOracle {
 }
 
 fn collect_diagonal_jps(
-    jump_points: &mut HashSet<(i32, i32)>,
+    jump_points: &mut HashMap<(i32, i32), EnumSet<Direction>>,
     jump_db: &JumpDatabase,
     mut x: i32,
     mut y: i32,
@@ -184,7 +258,8 @@ fn collect_diagonal_jps(
     while let (dist, true) = jump_db.get(x, y, dir) {
         x += dx * dist;
         y += dy * dist;
-        jump_points.insert((x, y));
+        *jump_points.entry((x, y)).or_default() |=
+            canonical_successors(jump_db.map().get_neighborhood(x, y), Some(dir));
     }
 }
 

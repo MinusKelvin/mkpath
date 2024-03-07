@@ -77,10 +77,14 @@ impl CpdRow {
             first_moves[mapper.state_to_id(node.get(state))] = fm
         });
 
+        Self::compress(first_moves)
+    }
+
+    pub fn compress(first_move_bits: impl IntoIterator<Item = u64>) -> CpdRow {
         let mut runs = vec![];
         let mut current_id = 0;
         let mut current_moves = !0;
-        for (id, moves) in first_moves.into_iter().enumerate().chain(Some((0, 0))) {
+        for (id, moves) in first_move_bits.into_iter().enumerate().chain(Some((0, 0))) {
             if current_moves & moves == 0 {
                 runs.push(CpdEntry(current_id | current_moves.trailing_zeros() << 26));
                 current_id = id as u32;
