@@ -26,26 +26,33 @@ fn main() {
         let map = movingai::read_bitgrid(&opt.path).unwrap();
 
         let oracle = ToppingPlusOracle::compute(map, |progress, total, time| {
+            let done = progress == total;
             let progress = progress as f64 / total as f64;
-            let ttg = (time.as_secs_f64() / progress - time.as_secs_f64()) as u64;
+            let ttg = if done {
+                time.as_secs_f64() as u64
+            } else {
+                (time.as_secs_f64() / progress - time.as_secs_f64()) as u64
+            };
             let mut stdout = std::io::stdout().lock();
             let _ = write!(
                 stdout,
-                "\r{:4.1}% ETA {} hr {:2} min {:2} sec",
+                "\r{:4.1}% {} {} hr {:2} min {:2} sec",
                 (progress * 1000.0).round() / 10.0,
+                if done { "Done" } else { "ETA" },
                 ttg / 60 / 60,
                 ttg / 60 % 60,
                 ttg % 60,
             );
             stdout.flush().unwrap();
         });
+        println!();
 
         oracle
             .save(&mut BufWriter::new(File::create(cpd_file).unwrap()))
             .unwrap();
     } else {
         let t1 = std::time::Instant::now();
-    
+
         let scen = movingai::read_scenario(&opt.path).unwrap();
         let map = movingai::read_bitgrid(&scen.map).unwrap();
 
