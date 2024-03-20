@@ -64,149 +64,101 @@ pub fn canonical_successors(
     nb: EnumSet<Direction>,
     going: Option<Direction>,
 ) -> EnumSet<Direction> {
-    let mut successors = EnumSet::empty();
-    use Direction::*;
-    match going {
-        Some(North) => {
-            if nb.contains(North) {
-                successors |= North;
+    const N: u8 = 1 << Direction::North as usize;
+    const W: u8 = 1 << Direction::West as usize;
+    const S: u8 = 1 << Direction::South as usize;
+    const E: u8 = 1 << Direction::East as usize;
+    const NW: u8 = 1 << Direction::NorthWest as usize;
+    const SW: u8 = 1 << Direction::SouthWest as usize;
+    const SE: u8 = 1 << Direction::SouthEast as usize;
+    const NE: u8 = 1 << Direction::NorthEast as usize;
+
+    const fn ortho_successors(f: u8, fl: u8, l: u8, bl: u8, fr: u8, r: u8, br: u8) -> [u8; 256] {
+        let mut result = [0; 256];
+        let mut nb = 0;
+        while nb < 256 {
+            if nb as u8 & f != 0 {
+                result[nb] |= f;
             }
-            if nb & (SouthWest | West) == West {
-                successors |= West;
-                if nb.is_superset(North | NorthWest) {
-                    successors |= NorthWest;
+            if nb as u8 & (bl | l) == l {
+                result[nb] |= l;
+                if nb as u8 & (f | fl) == f | fl {
+                    result[nb] |= fl;
                 }
             }
-            if nb & (SouthEast | East) == East {
-                successors |= East;
-                if nb.is_superset(North | NorthEast) {
-                    successors |= NorthEast;
+            if nb as u8 & (br | r) == r {
+                result[nb] |= r;
+                if nb as u8 & (f | fr) == f | fr {
+                    result[nb] |= fr;
                 }
             }
+            nb += 1;
         }
-        Some(West) => {
-            if nb.contains(West) {
-                successors |= West;
-            }
-            if nb & (NorthEast | North) == North {
-                successors |= North;
-                if nb.is_superset(West | NorthWest) {
-                    successors |= NorthWest;
-                }
-            }
-            if nb & (SouthEast | South) == South {
-                successors |= South;
-                if nb.is_superset(West | SouthWest) {
-                    successors |= SouthWest;
-                }
-            }
-        }
-        Some(South) => {
-            if nb.contains(South) {
-                successors |= South;
-            }
-            if nb & (NorthWest | West) == West {
-                successors |= West;
-                if nb.is_superset(South | SouthWest) {
-                    successors |= SouthWest;
-                }
-            }
-            if nb & (NorthEast | East) == East {
-                successors |= East;
-                if nb.is_superset(South | SouthEast) {
-                    successors |= SouthEast;
-                }
-            }
-        }
-        Some(East) => {
-            if nb.contains(East) {
-                successors |= East;
-            }
-            if nb & (NorthWest | North) == North {
-                successors |= North;
-                if nb.is_superset(East | NorthEast) {
-                    successors |= NorthEast;
-                }
-            }
-            if nb & (SouthWest | South) == South {
-                successors |= South;
-                if nb.is_superset(East | SouthEast) {
-                    successors |= SouthEast;
-                }
-            }
-        }
-        Some(NorthWest) => {
-            if nb.contains(North) {
-                successors |= North;
-            }
-            if nb.contains(West) {
-                successors |= West;
-            }
-            if nb.is_superset(North | West | NorthWest) {
-                successors |= NorthWest;
-            }
-        }
-        Some(SouthWest) => {
-            if nb.contains(South) {
-                successors |= South;
-            }
-            if nb.contains(West) {
-                successors |= West;
-            }
-            if nb.is_superset(South | West | SouthWest) {
-                successors |= SouthWest;
-            }
-        }
-        Some(SouthEast) => {
-            if nb.contains(South) {
-                successors |= South;
-            }
-            if nb.contains(East) {
-                successors |= East;
-            }
-            if nb.is_superset(South | East | SouthEast) {
-                successors |= SouthEast;
-            }
-        }
-        Some(NorthEast) => {
-            if nb.contains(North) {
-                successors |= North;
-            }
-            if nb.contains(East) {
-                successors |= East;
-            }
-            if nb.is_superset(North | East | NorthEast) {
-                successors |= NorthEast;
-            }
-        }
-        None => {
-            if nb.contains(North) {
-                successors |= North;
-            }
-            if nb.contains(West) {
-                successors |= West;
-            }
-            if nb.contains(South) {
-                successors |= South;
-            }
-            if nb.contains(East) {
-                successors |= East;
-            }
-            if nb.is_superset(North | West | NorthWest) {
-                successors |= NorthWest;
-            }
-            if nb.is_superset(South | West | SouthWest) {
-                successors |= SouthWest;
-            }
-            if nb.is_superset(South | East | SouthEast) {
-                successors |= SouthEast;
-            }
-            if nb.is_superset(North | East | NorthEast) {
-                successors |= NorthEast;
-            }
-        }
+        result
     }
-    successors
+
+    const fn diagonal_successors(f: u8, l: u8, r: u8) -> [u8; 256] {
+        let mut result = [0; 256];
+        let mut nb = 0;
+        while nb < 256 {
+            if nb as u8 & l != 0 {
+                result[nb] |= l;
+            }
+            if nb as u8 & r != 0 {
+                result[nb] |= r;
+            }
+            if nb as u8 & (l | r | f) == l | r | f {
+                result[nb] |= f;
+            }
+            nb += 1;
+        }
+        result
+    }
+
+    static SUCCESSORS: [[u8; 256]; 9] = [
+        ortho_successors(N, NW, W, SW, NE, E, SE),
+        ortho_successors(W, SW, S, SE, NW, N, NE),
+        ortho_successors(S, SE, E, NE, SW, W, NW),
+        ortho_successors(E, NE, N, NW, SE, S, SW),
+        diagonal_successors(NW, N, W),
+        diagonal_successors(SW, S, W),
+        diagonal_successors(SE, S, E),
+        diagonal_successors(NE, N, E),
+        {
+            let mut result = [0; 256];
+            let mut nb = 0;
+            while nb < 256 {
+                if nb as u8 & N != 0 {
+                    result[nb] |= N;
+                }
+                if nb as u8 & W != 0 {
+                    result[nb] |= W;
+                }
+                if nb as u8 & S != 0 {
+                    result[nb] |= S;
+                }
+                if nb as u8 & E != 0 {
+                    result[nb] |= E;
+                }
+                if nb as u8 & (N | W | NW) == N | W | NW {
+                    result[nb] |= NW;
+                }
+                if nb as u8 & (S | W | SW) == S | W | SW {
+                    result[nb] |= SW;
+                }
+                if nb as u8 & (S | E | SE) == S | E | SE {
+                    result[nb] |= SE;
+                }
+                if nb as u8 & (N | E | NE) == N | E | NE {
+                    result[nb] |= NE;
+                }
+                nb += 1;
+            }
+            result
+        },
+    ];
+
+    EnumSet::from_u8(SUCCESSORS[going.map_or(8, |d| d as usize)][nb.as_usize()])
 }
 
 fn skipped_past<const D: i32>(start: i32, end: i32, target: i32) -> bool {
