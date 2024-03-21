@@ -125,13 +125,14 @@ impl ToppingPlusOracle {
                     }
 
                     while let Some(node) = open.next() {
-                        let fm = node.get(first_move);
-                        first_moves[mapper.state_to_id(node.get(state))] =
-                            if fm.is_disjoint(canonical_first_moves) {
-                                fm
-                            } else {
-                                fm & canonical_first_moves
-                            };
+                        let mut fm = node.get(first_move);
+                        if !fm.is_disjoint(diagonals) {
+                            fm &= diagonals;
+                        }
+                        if !fm.is_disjoint(canonical_first_moves) {
+                            fm &= canonical_first_moves;
+                        }
+                        first_moves[mapper.state_to_id(node.get(state))] = fm;
                         edges.clear();
                         expander.expand(node, &mut edges);
                         for edge in &edges {
@@ -142,8 +143,7 @@ impl ToppingPlusOracle {
                             let (x, y) = successor.get(state);
                             let new_g = edge.cost + node.get(g);
                             // TODO: think about floating point round-off error
-                            let approx_eq = (new_g - successor.get(g)).abs() < 0.0000001;
-                            if !approx_eq && new_g < successor.get(g) {
+                            if new_g < successor.get(g) {
                                 // Shorter path to node; overwrite first move and successors.
                                 successor.set(g, new_g);
                                 successor.set(first_move, node.get(first_move));
@@ -156,7 +156,7 @@ impl ToppingPlusOracle {
                                 );
                                 successor.set_parent(Some(node));
                                 open.relaxed(successor);
-                            } else if approx_eq {
+                            } else if new_g == successor.get(g) {
                                 // In case of tie, multiple first moves may allow optimal paths.
                                 // Additionally, there are more canonical successors to consider
                                 // when the node is expanded.

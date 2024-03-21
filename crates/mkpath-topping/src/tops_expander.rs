@@ -127,11 +127,7 @@ impl<'a, P: GridStateMapper> Expander<'a> for TopsExpander<'a, P> {
         let mut successors =
             canonical_successors(self.oracle.jump_db.map().get_neighborhood(x, y), dir);
 
-        let first_move: Option<Direction> = self.oracle.partial_cpd.get(&(x, y)).and_then(|row| {
-            row.lookup(self.oracle.mapper.state_to_id(self.target))
-                .try_into()
-                .ok()
-        });
+        let first_move = self.oracle.query((x, y), self.target);
 
         if let Some(dir) = first_move {
             successors &= dir;
