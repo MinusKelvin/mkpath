@@ -8,7 +8,7 @@ use mkpath_core::traits::{Expander, OpenList};
 use mkpath_core::NodeBuilder;
 use mkpath_cpd::{BucketQueueFactory, CpdRow, StateIdMapper};
 use mkpath_grid::{BitGrid, Direction, EightConnectedExpander, Grid, GridPool};
-use mkpath_jps::{canonical_successors, JumpDatabase};
+use mkpath_jps::{canonical_successors, CanonicalGridExpander, JumpDatabase};
 use rayon::prelude::*;
 
 mod tops_expander;
@@ -104,7 +104,7 @@ impl ToppingPlusOracle {
 
                     let mut first_moves = vec![EnumSet::all(); mapper.num_ids()];
                     let mut edges = vec![];
-                    let mut expander = EightConnectedExpander::new(&map, pool);
+                    let mut expander = CanonicalGridExpander::new(&map, pool);
                     let mut open = pqueue.new_queue(g, 0.999);
                     let tiebreak_table =
                         compute_tiebreak_table(map.get_neighborhood(source.0, source.1), jps);
@@ -130,11 +130,10 @@ impl ToppingPlusOracle {
                         first_moves[mapper.state_to_id(node.get(state))] =
                             tiebreak_table[node.get(first_move).as_usize()];
                         edges.clear();
-                        expander.expand(node, &mut edges);
+                        unsafe {
+                            expander.expand_unchecked(node, &mut edges, node.get(successors));
+                        }
                         for edge in &edges {
-                            if !node.get(successors).contains(edge.direction) {
-                                continue;
-                            }
                             let successor = edge.successor;
                             let (x, y) = successor.get(state);
                             let new_g = edge.cost + node.get(g);

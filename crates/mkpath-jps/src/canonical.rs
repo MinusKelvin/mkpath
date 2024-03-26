@@ -1,3 +1,4 @@
+use enumset::EnumSet;
 use mkpath_core::traits::Expander;
 use mkpath_core::NodeRef;
 use mkpath_grid::{BitGrid, Direction, GridEdge, GridStateMapper, SAFE_SQRT_2};
@@ -13,20 +14,14 @@ impl<'a, P: GridStateMapper> CanonicalGridExpander<'a, P> {
     pub fn new(map: &'a BitGrid, node_pool: &'a P) -> Self {
         CanonicalGridExpander { node_pool, map }
     }
-}
 
-impl<'a, P: GridStateMapper> Expander<'a> for CanonicalGridExpander<'a, P> {
-    type Edge = GridEdge<'a>;
-
-    fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
+    pub unsafe fn expand_unchecked(
+        &mut self,
+        node: NodeRef<'a>,
+        edges: &mut Vec<GridEdge<'a>>,
+        successors: EnumSet<Direction>,
+    ) {
         let (x, y) = node.get(self.node_pool.state_member());
-
-        let dir = node.get_parent().and_then(|parent| {
-            let (px, py) = parent.get(self.node_pool.state_member());
-            crate::reached_direction((px, py), (x, y))
-        });
-
-        let successors = canonical_successors(self.map.get_neighborhood(x, y), dir);
 
         unsafe {
             // All nodes have the traversability of the relevant tile checked via successor set.
@@ -88,6 +83,25 @@ impl<'a, P: GridStateMapper> Expander<'a> for CanonicalGridExpander<'a, P> {
                     direction: Direction::NorthEast,
                 });
             }
+        }
+    }
+}
+
+impl<'a, P: GridStateMapper> Expander<'a> for CanonicalGridExpander<'a, P> {
+    type Edge = GridEdge<'a>;
+
+    fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
+        let (x, y) = node.get(self.node_pool.state_member());
+
+        let dir = node.get_parent().and_then(|parent| {
+            let (px, py) = parent.get(self.node_pool.state_member());
+            crate::reached_direction((px, py), (x, y))
+        });
+
+        let successors = canonical_successors(self.map.get_neighborhood(x, y), dir);
+
+        unsafe {
+            self.expand_unchecked(node, edges, successors);
         }
     }
 }
