@@ -14,6 +14,7 @@ mkpath-topping = { path = "crates/mkpath-topping" }
 name = "mkpath"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 mkpath-core = { workspace = true }
