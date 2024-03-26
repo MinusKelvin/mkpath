@@ -1,6 +1,5 @@
 use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
-use mkpath_cpd::StateIdMapper;
 use mkpath_grid::{Direction, GridStateMapper, SAFE_SQRT_2};
 use mkpath_jps::canonical_successors;
 
