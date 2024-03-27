@@ -4,14 +4,18 @@ use std::time::Duration;
 
 use ahash::HashMap;
 use enumset::EnumSet;
-use mkpath_core::traits::{Expander, OpenList};
 use mkpath_core::NodeBuilder;
-use mkpath_cpd::{BucketQueueFactory, CpdRow, StateIdMapper};
+use mkpath_cpd::{CpdRow, StateIdMapper};
 use mkpath_grid::{BitGrid, Direction, EightConnectedExpander, Grid, GridPool};
-use mkpath_jps::{canonical_successors, CanonicalGridExpander, JumpDatabase};
+use mkpath_jps::{canonical_successors, JumpDatabase};
 use rayon::prelude::*;
+use tiebreak::compute_tiebreak_table;
 
+mod first_move;
+mod tiebreak;
 mod tops_expander;
+
+use crate::first_move::FirstMoveComputer;
 
 pub use self::tops_expander::*;
 
@@ -26,55 +30,10 @@ impl ToppingPlusOracle {
         map: BitGrid,
         progress_callback: impl Fn(usize, usize, Duration) + Sync,
     ) -> Self {
-        use Direction::*;
-
         let jump_db = JumpDatabase::new(map);
         let map = jump_db.map();
         let mapper = GridMapper::dfs_preorder(map);
-
-        let diagonals = NorthWest | SouthWest | NorthEast | SouthEast;
-
-        let mut jump_points = HashMap::default();
-        for y in 0..map.height() {
-            for x in 0..map.width() {
-                if !map.get(x, y) {
-                    continue;
-                }
-
-                let nb = map.get_neighborhood(x, y);
-                let mut jp_successors = EnumSet::empty();
-                let mut jps = EnumSet::empty();
-
-                for dir in [North, South, East, West] {
-                    if !nb.contains(dir.backwards()) {
-                        continue;
-                    }
-                    let dirs = canonical_successors(nb, Some(dir));
-                    if dirs & dir != dirs {
-                        jps |= dir;
-                        jp_successors |= dirs;
-                    }
-                }
-
-                if !jps.is_empty() {
-                    *jump_points.entry((x, y)).or_default() |= jps;
-
-                    jp_successors &= diagonals;
-                    if jp_successors.contains(NorthWest) {
-                        collect_diagonal_jps(&mut jump_points, &jump_db, x, y, NorthWest);
-                    }
-                    if jp_successors.contains(SouthWest) {
-                        collect_diagonal_jps(&mut jump_points, &jump_db, x, y, SouthWest);
-                    }
-                    if jp_successors.contains(SouthEast) {
-                        collect_diagonal_jps(&mut jump_points, &jump_db, x, y, SouthEast);
-                    }
-                    if jp_successors.contains(NorthEast) {
-                        collect_diagonal_jps(&mut jump_points, &jump_db, x, y, NorthEast);
-                    }
-                }
-            }
-        }
+        let jump_points = independent_jump_points(map, &jump_db);
 
         let progress = AtomicUsize::new(0);
         let start = std::time::Instant::now();
@@ -83,95 +42,18 @@ impl ToppingPlusOracle {
         let partial_cpd: HashMap<_, _> = jump_points
             .par_iter()
             .map_init(
-                || {
-                    let mut builder = NodeBuilder::new();
-                    let state = builder.add_field((-1, -1));
-                    let successors = builder.add_field(EnumSet::all());
-                    let first_move = builder.add_field(EnumSet::all());
-                    let g = builder.add_field(f64::INFINITY);
-                    let pqueue = BucketQueueFactory::new(&mut builder);
-                    let pool = GridPool::new(
-                        builder.build_with_capacity(mapper.array.len()),
-                        state,
-                        map.width(),
-                        map.height(),
-                    );
-                    (state, successors, g, first_move, pqueue, pool)
-                },
-                |&mut (state, successors, g, first_move, ref pqueue, ref mut pool),
-                 (&source, &jps)| {
-                    pool.reset();
+                || FirstMoveComputer::new(map, &mapper),
+                |fm_computer, (&source, &jps)| {
+                    let first_moves = fm_computer.compute(source);
 
-                    let mut first_moves = vec![EnumSet::all(); mapper.num_ids()];
-                    let mut edges = vec![];
-                    let mut expander = CanonicalGridExpander::new(&map, pool);
-                    let mut open = pqueue.new_queue(g, 0.999);
                     let tiebreak_table =
                         compute_tiebreak_table(map.get_neighborhood(source.0, source.1), jps);
 
-                    let start_node = pool.generate(source);
-                    start_node.set(g, 0.0);
-
-                    expander.expand(start_node, &mut edges);
-                    for edge in &edges {
-                        let node = edge.successor;
-                        node.set(g, edge.cost);
-                        node.set(first_move, EnumSet::only(edge.direction));
-                        node.set_parent(Some(start_node));
-                        let (x, y) = node.get(state);
-                        node.set(
-                            successors,
-                            canonical_successors(map.get_neighborhood(x, y), Some(edge.direction)),
-                        );
-                        open.relaxed(node);
-                    }
-
-                    while let Some(node) = open.next() {
-                        first_moves[mapper.state_to_id(node.get(state))] =
-                            tiebreak_table[node.get(first_move).as_usize()];
-                        edges.clear();
-                        unsafe {
-                            expander.expand_unchecked(node, &mut edges, node.get(successors));
-                        }
-                        for edge in &edges {
-                            let successor = edge.successor;
-                            let (x, y) = successor.get(state);
-                            let new_g = edge.cost + node.get(g);
-                            // TODO: think about floating point round-off error
-                            if new_g < successor.get(g) {
-                                // Shorter path to node; overwrite first move and successors.
-                                successor.set(g, new_g);
-                                successor.set(first_move, node.get(first_move));
-                                successor.set(
-                                    successors,
-                                    canonical_successors(
-                                        map.get_neighborhood(x, y),
-                                        Some(edge.direction),
-                                    ),
-                                );
-                                successor.set_parent(Some(node));
-                                open.relaxed(successor);
-                            } else if new_g == successor.get(g) {
-                                // In case of tie, multiple first moves may allow optimal paths.
-                                // Additionally, there are more canonical successors to consider
-                                // when the node is expanded.
-                                successor.set(
-                                    first_move,
-                                    successor.get(first_move) | node.get(first_move),
-                                );
-                                successor.set(
-                                    successors,
-                                    successor.get(successors)
-                                        | canonical_successors(
-                                            map.get_neighborhood(x, y),
-                                            Some(edge.direction),
-                                        ),
-                                );
-                            }
-                        }
-                    }
-
-                    let result = CpdRow::compress(first_moves.into_iter().map(|set| set.as_u64()));
+                    let result = CpdRow::compress(
+                        first_moves
+                            .into_iter()
+                            .map(|set| tiebreak_table[set.as_usize()].as_u64()),
+                    );
 
                     let progress = progress.fetch_add(1, Ordering::Relaxed) + 1;
                     progress_callback(progress, num_jps, start.elapsed());
@@ -233,6 +115,59 @@ impl ToppingPlusOracle {
             .get(&pos)
             .and_then(|row| row.lookup(self.mapper.state_to_id(target)).try_into().ok())
     }
+}
+
+fn independent_jump_points(
+    map: &BitGrid,
+    jump_db: &JumpDatabase,
+) -> HashMap<(i32, i32), EnumSet<Direction>> {
+    use Direction::*;
+
+    let diagonals = NorthWest | SouthWest | NorthEast | SouthEast;
+
+    let mut jump_points = HashMap::default();
+    for y in 0..map.height() {
+        for x in 0..map.width() {
+            if !map.get(x, y) {
+                continue;
+            }
+
+            let nb = map.get_neighborhood(x, y);
+            let mut jp_successors = EnumSet::empty();
+            let mut jps = EnumSet::empty();
+
+            for dir in [North, South, East, West] {
+                if !nb.contains(dir.backwards()) {
+                    continue;
+                }
+                let dirs = canonical_successors(nb, Some(dir));
+                if dirs & dir != dirs {
+                    jps |= dir;
+                    jp_successors |= dirs;
+                }
+            }
+
+            if !jps.is_empty() {
+                *jump_points.entry((x, y)).or_default() |= jps;
+
+                jp_successors &= diagonals;
+                if jp_successors.contains(NorthWest) {
+                    collect_diagonal_jps(&mut jump_points, &jump_db, x, y, NorthWest);
+                }
+                if jp_successors.contains(SouthWest) {
+                    collect_diagonal_jps(&mut jump_points, &jump_db, x, y, SouthWest);
+                }
+                if jp_successors.contains(SouthEast) {
+                    collect_diagonal_jps(&mut jump_points, &jump_db, x, y, SouthEast);
+                }
+                if jp_successors.contains(NorthEast) {
+                    collect_diagonal_jps(&mut jump_points, &jump_db, x, y, NorthEast);
+                }
+            }
+        }
+    }
+
+    jump_points
 }
 
 fn collect_diagonal_jps(
@@ -349,125 +284,5 @@ impl StateIdMapper for GridMapper {
 
     fn id_to_state(&self, id: usize) -> Self::State {
         self.array[id]
-    }
-}
-
-fn is_irrelevant_jp(jp: Direction, fm: EnumSet<Direction>, nb: EnumSet<Direction>) -> bool {
-    use Direction::*;
-
-    let canonical = canonical_successors(nb, Some(jp));
-    // Simple non-optimal/non-canonical case
-    if canonical.is_disjoint(fm) {
-        return true;
-    }
-
-    // Cases 1, 2, 3, and 4 (backwards, switchback, and diagonal-to-diagonal turn)
-    if !fm.is_disjoint(match jp {
-        North => SouthWest | South | SouthEast,
-        West => NorthEast | East | SouthEast,
-        South => NorthWest | North | NorthEast,
-        East => NorthWest | West | SouthWest,
-        NorthWest => SouthWest | South | SouthEast | East | NorthEast,
-        SouthWest => SouthEast | East | NorthEast | North | NorthWest,
-        SouthEast => NorthEast | North | NorthWest | West | SouthWest,
-        NorthEast => NorthWest | West | SouthWest | South | SouthEast,
-    }) {
-        return true;
-    }
-
-    // Case 5 (orthogonal-to-orthogonal turn)
-    match jp {
-        North if fm.contains(West) && nb.contains(SouthWest) => return true,
-        North if fm.contains(East) && nb.contains(SouthEast) => return true,
-        West if fm.contains(South) && nb.contains(SouthEast) => return true,
-        West if fm.contains(North) && nb.contains(NorthEast) => return true,
-        South if fm.contains(West) && nb.contains(NorthWest) => return true,
-        South if fm.contains(East) && nb.contains(NorthEast) => return true,
-        East if fm.contains(South) && nb.contains(SouthWest) => return true,
-        East if fm.contains(North) && nb.contains(NorthWest) => return true,
-        _ => {}
-    }
-
-    false
-}
-
-fn compute_tiebreak_table(
-    nb: EnumSet<Direction>,
-    jps: EnumSet<Direction>,
-) -> [EnumSet<Direction>; 256] {
-    let valid_moves = canonical_successors(nb, None);
-    let mut result = [EnumSet::empty(); 256];
-    // empty first move set is invalid, so skip it
-    for fm in 1..256 {
-        let fm_dirs = EnumSet::from_u8(fm as u8);
-        result[fm] = fm_dirs;
-
-        if !fm_dirs.is_subset(valid_moves) {
-            // first move set is invalid because it contains illegal moves; skip
-            continue;
-        }
-
-        for jp in jps {
-            if is_irrelevant_jp(jp, fm_dirs, nb) {
-                continue;
-            }
-            result[fm] &= canonical_successors(nb, Some(jp));
-        }
-
-        assert!(!result[fm].is_empty());
-    }
-    result
-}
-
-#[test]
-fn tiebreaking_is_valid() {
-    use Direction::*;
-
-    for nb in 0..256 {
-        let nb = EnumSet::from_u8(nb as u8);
-
-        let mut jp_successors = EnumSet::empty();
-        let mut jp = EnumSet::empty();
-
-        // find orthogonal jump points
-        for dir in [North, South, East, West] {
-            if !nb.contains(dir.backwards()) {
-                continue;
-            }
-            let successors = canonical_successors(nb, Some(dir));
-            if successors & dir != successors {
-                jp_successors |= successors;
-                jp |= dir;
-            }
-        }
-
-        // find potential diagonal jump points
-        for dir in [NorthWest, NorthEast, SouthWest, SouthEast] {
-            let dir_x = match dir {
-                NorthWest | SouthWest => West,
-                _ => East,
-            };
-            let dir_y = match dir {
-                NorthWest | NorthEast => North,
-                _ => South,
-            };
-
-            if nb.is_superset(dir_x.backwards() | dir_y.backwards() | dir.backwards())
-                && !nb.is_disjoint(dir_x | dir_y)
-            {
-                // possible diagonal jump point
-                // note that since more jump points can only make the valid first move set smaller,
-                // we don't need to check the same neighborhood with fewer diagonal jump points
-                jp |= dir;
-                jp_successors |= canonical_successors(nb, Some(dir));
-            }
-        }
-
-        if jp.is_empty() {
-            continue;
-        }
-
-        // computation of tiebreak table checks the non-empty invariant
-        compute_tiebreak_table(nb, jp);
     }
 }
