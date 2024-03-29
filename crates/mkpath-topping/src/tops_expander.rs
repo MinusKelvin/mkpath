@@ -3,16 +3,16 @@ use mkpath_core::NodeRef;
 use mkpath_grid::{Direction, GridStateMapper, SAFE_SQRT_2};
 use mkpath_jps::canonical_successors;
 
-use crate::ToppingPlusOracle;
+use crate::PartialCellCpd;
 
 pub struct TopsExpander<'a, P> {
     node_pool: &'a P,
-    oracle: &'a ToppingPlusOracle,
+    oracle: &'a PartialCellCpd,
     target: (i32, i32),
 }
 
 impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
-    pub fn new(oracle: &'a ToppingPlusOracle, node_pool: &'a P, target: (i32, i32)) -> Self {
+    pub fn new(oracle: &'a PartialCellCpd, node_pool: &'a P, target: (i32, i32)) -> Self {
         TopsExpander {
             node_pool,
             oracle,
@@ -39,7 +39,7 @@ impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
 
         if let Some(dist) = self
             .oracle
-            .jump_db
+            .jump_db()
             .ortho_jump_unchecked(x, y, dir, self.target)
         {
             edges.push(WeightedEdge {
@@ -70,7 +70,7 @@ impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
         let mut cost = 0.0;
         while let Some((dist, turn)) =
             self.oracle
-                .jump_db
+                .jump_db()
                 .diagonal_jump_unchecked(x, y, dir, self.target)
         {
             x += dx * dist;
@@ -123,8 +123,7 @@ impl<'a, P: GridStateMapper> Expander<'a> for TopsExpander<'a, P> {
             mkpath_jps::reached_direction((px, py), (x, y))
         });
 
-        let mut successors =
-            canonical_successors(self.oracle.jump_db.map().get_neighborhood(x, y), dir);
+        let mut successors = canonical_successors(self.oracle.map().get_neighborhood(x, y), dir);
 
         let first_move = self.oracle.query((x, y), self.target);
 

@@ -1,121 +1,19 @@
 use std::io::{Read, Write};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
 
 use ahash::HashMap;
 use enumset::EnumSet;
 use mkpath_core::NodeBuilder;
-use mkpath_cpd::{CpdRow, StateIdMapper};
+use mkpath_cpd::StateIdMapper;
 use mkpath_grid::{BitGrid, Direction, EightConnectedExpander, Grid, GridPool};
 use mkpath_jps::{canonical_successors, JumpDatabase};
-use rayon::prelude::*;
-use tiebreak::compute_tiebreak_table;
 
+mod cpd;
 mod first_move;
 mod tiebreak;
 mod tops_expander;
 
-use crate::first_move::FirstMoveComputer;
-
+pub use self::cpd::*;
 pub use self::tops_expander::*;
-
-pub struct ToppingPlusOracle {
-    mapper: GridMapper,
-    jump_db: JumpDatabase,
-    partial_cpd: HashMap<(i32, i32), CpdRow>,
-}
-
-impl ToppingPlusOracle {
-    pub fn compute(
-        map: BitGrid,
-        progress_callback: impl Fn(usize, usize, Duration) + Sync,
-    ) -> Self {
-        let jump_db = JumpDatabase::new(map);
-        let map = jump_db.map();
-        let mapper = GridMapper::dfs_preorder(map);
-        let jump_points = independent_jump_points(map, &jump_db);
-
-        let progress = AtomicUsize::new(0);
-        let start = std::time::Instant::now();
-        let num_jps = jump_points.len();
-
-        let partial_cpd: HashMap<_, _> = jump_points
-            .par_iter()
-            .map_init(
-                || FirstMoveComputer::new(map, &mapper),
-                |fm_computer, (&source, &jps)| {
-                    let first_moves = fm_computer.compute(source);
-
-                    let tiebreak_table =
-                        compute_tiebreak_table(map.get_neighborhood(source.0, source.1), jps);
-
-                    let result = CpdRow::compress(
-                        first_moves
-                            .into_iter()
-                            .map(|set| tiebreak_table[set.as_usize()].as_u64()),
-                    );
-
-                    let progress = progress.fetch_add(1, Ordering::Relaxed) + 1;
-                    progress_callback(progress, num_jps, start.elapsed());
-                    (source, result)
-                },
-            )
-            .collect();
-
-        ToppingPlusOracle {
-            mapper,
-            jump_db,
-            partial_cpd,
-        }
-    }
-
-    pub fn load(map: BitGrid, from: &mut impl Read) -> std::io::Result<Self> {
-        let jump_db = JumpDatabase::new(map);
-        let mapper = GridMapper::load(from)?;
-
-        let mut bytes = [0; 4];
-        from.read_exact(&mut bytes)?;
-        let num_jps = u32::from_le_bytes(bytes) as usize;
-
-        let mut partial_cpd = HashMap::default();
-        for _ in 0..num_jps {
-            from.read_exact(&mut bytes)?;
-            let x = i32::from_le_bytes(bytes);
-            from.read_exact(&mut bytes)?;
-            let y = i32::from_le_bytes(bytes);
-
-            assert!(x >= 0);
-            assert!(y >= 0);
-            assert!(x < jump_db.map().width());
-            assert!(y < jump_db.map().height());
-
-            partial_cpd.insert((x, y), CpdRow::load(from)?);
-        }
-
-        Ok(ToppingPlusOracle {
-            mapper,
-            jump_db,
-            partial_cpd,
-        })
-    }
-
-    pub fn save(&self, to: &mut impl Write) -> std::io::Result<()> {
-        self.mapper.save(to)?;
-        to.write_all(&u32::to_le_bytes(self.partial_cpd.len() as u32))?;
-        for ((x, y), row) in &self.partial_cpd {
-            to.write_all(&x.to_le_bytes())?;
-            to.write_all(&y.to_le_bytes())?;
-            row.save(to)?;
-        }
-        Ok(())
-    }
-
-    pub fn query(&self, pos: (i32, i32), target: (i32, i32)) -> Option<Direction> {
-        self.partial_cpd
-            .get(&pos)
-            .and_then(|row| row.lookup(self.mapper.state_to_id(target)).try_into().ok())
-    }
-}
 
 fn independent_jump_points(
     map: &BitGrid,

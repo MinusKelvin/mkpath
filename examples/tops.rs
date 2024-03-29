@@ -25,7 +25,7 @@ fn main() {
 
         let map = movingai::read_bitgrid(&opt.path).unwrap();
 
-        let oracle = ToppingPlusOracle::compute(map, |progress, total, time| {
+        let oracle = PartialCellCpd::compute(map, |progress, total, time| {
             let done = progress == total;
             let progress = progress as f64 / total as f64;
             let ttg = if done {
@@ -59,8 +59,7 @@ fn main() {
         let mut cpd_file = scen.map.clone();
         cpd_file.as_mut_os_string().push(".top+");
         let oracle =
-            ToppingPlusOracle::load(map, &mut BufReader::new(File::open(cpd_file).unwrap()))
-                .unwrap();
+            PartialCellCpd::load(map, &mut BufReader::new(File::open(cpd_file).unwrap())).unwrap();
 
         let mut builder = NodeBuilder::new();
         let state = builder.add_field((-1, -1));
