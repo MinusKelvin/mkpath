@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use mkpath::{AStarSearcher, HashPool, NodeBuilder, PriorityQueueFactory};
 use mkpath_grid::octile_distance;
-use mkpath_topping::{ToppingPlusOracle, TopsExpander};
+use mkpath_grid_gb::{PartialCellCpd, TopsExpander};
 use structopt::StructOpt;
 
 mod movingai;
