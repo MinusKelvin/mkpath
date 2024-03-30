@@ -12,10 +12,12 @@ mod cpd;
 mod first_move;
 mod tiebreak;
 mod tops_expander;
+mod jps_bb_expander;
 
 pub use self::bb::*;
 pub use self::cpd::*;
 pub use self::tops_expander::*;
+pub use self::jps_bb_expander::*;
 
 fn independent_jump_points(
     map: &BitGrid,

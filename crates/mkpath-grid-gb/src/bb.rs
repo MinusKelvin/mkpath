@@ -126,7 +126,7 @@ impl PartialCellBb {
 
     pub fn query(&self, pos: (i32, i32), target: (i32, i32)) -> Option<EnumSet<Direction>> {
         self.partial_bb.get(&pos).map(|rects| {
-            [
+            let r: EnumSet<Direction> = [
                 Direction::North,
                 Direction::West,
                 Direction::South,
@@ -138,7 +138,9 @@ impl PartialCellBb {
             ]
             .into_iter()
             .filter(|&d| rects[d as usize].contains(target.0, target.1))
-            .collect()
+            .collect();
+            assert!(!r.is_empty());
+            r
         })
     }
 

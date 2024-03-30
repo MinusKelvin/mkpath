@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use mkpath::{AStarSearcher, HashPool, NodeBuilder, PriorityQueueFactory};
 use mkpath_grid::octile_distance;
-use mkpath_grid_gb::{PartialCellBb, TopsExpander};
+use mkpath_grid_gb::{JpsBbExpander, PartialCellBb};
 use structopt::StructOpt;
 
 mod movingai;
@@ -69,28 +69,28 @@ fn main() {
 
         let t2 = std::time::Instant::now();
 
-        // for problem in &scen.instances {
-        //     pool.reset();
+        for problem in &scen.instances {
+            pool.reset();
 
-        //     let open_list = open_list_factory.new_queue(astar.ordering());
-        //     let expander = TopsExpander::new(&oracle, &pool, problem.target);
+            let open_list = open_list_factory.new_queue(astar.ordering());
+            let expander = JpsBbExpander::new(&oracle, &pool, problem.target);
 
-        //     let result = astar.search(
-        //         expander,
-        //         open_list,
-        //         |node| octile_distance(node.get(state), problem.target),
-        //         |node| node.get(state) == problem.target,
-        //         pool.generate(problem.start),
-        //     );
+            let result = astar.search(
+                expander,
+                open_list,
+                |node| octile_distance(node.get(state), problem.target),
+                |node| node.get(state) == problem.target,
+                pool.generate(problem.start),
+            );
 
-        //     if let Some(path) = result {
-        //         let cost = path.last().unwrap().get(astar.g());
-        //         let path: Vec<_> = path.into_iter().map(|node| node.get(state)).collect();
-        //         println!("{cost:.2} {path:?}");
-        //     } else {
-        //         println!("failed to find path");
-        //     }
-        // }
+            if let Some(path) = result {
+                let cost = path.last().unwrap().get(astar.g());
+                let path: Vec<_> = path.into_iter().map(|node| node.get(state)).collect();
+                println!("{cost:.2} {path:?}");
+            } else {
+                println!("failed to find path");
+            }
+        }
 
         let t3 = std::time::Instant::now();
         eprintln!("Load: {:<10.2?} Search: {:<10.2?}", t2 - t1, t3 - t2,);
