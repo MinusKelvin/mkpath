@@ -7,11 +7,13 @@ use mkpath_cpd::StateIdMapper;
 use mkpath_grid::{BitGrid, Direction, EightConnectedExpander, Grid, GridPool};
 use mkpath_jps::{canonical_successors, JumpDatabase};
 
+mod bb;
 mod cpd;
 mod first_move;
 mod tiebreak;
 mod tops_expander;
 
+pub use self::bb::*;
 pub use self::cpd::*;
 pub use self::tops_expander::*;
 

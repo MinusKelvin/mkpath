@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use ahash::HashMap;
+use enumset::EnumSet;
 use mkpath_cpd::{CpdRow, StateIdMapper};
 use mkpath_grid::{BitGrid, Direction};
 use mkpath_jps::JumpDatabase;
@@ -35,17 +36,18 @@ impl PartialCellCpd {
         let partial_cpd: HashMap<_, _> = jump_points
             .par_iter()
             .map_init(
-                || FirstMoveComputer::new(map, &mapper),
+                || FirstMoveComputer::new(map),
                 |fm_computer, (&source, &jps)| {
-                    let first_moves = fm_computer.compute(source);
+                    let mut first_moves = vec![EnumSet::all(); mapper.array.len()];
+                    fm_computer
+                        .compute(source, |pos, fm| first_moves[mapper.state_to_id(pos)] = fm);
 
                     let tiebreak_table =
                         compute_tiebreak_table(map.get_neighborhood(source.0, source.1), jps);
-
                     let result = CpdRow::compress(
                         first_moves
                             .into_iter()
-                            .map(|set| tiebreak_table[set.as_usize()].as_u64()),
+                            .map(|fm| tiebreak_table[fm.as_usize()].as_u64()),
                     );
 
                     let mut progress = progress.lock().unwrap();

@@ -1,15 +1,12 @@
 use enumset::EnumSet;
 use mkpath_core::traits::{Expander, OpenList};
 use mkpath_core::{NodeBuilder, NodeMemberPointer};
-use mkpath_cpd::{BucketQueueFactory, StateIdMapper};
+use mkpath_cpd::BucketQueueFactory;
 use mkpath_grid::{BitGrid, Direction, GridPool};
 use mkpath_jps::{canonical_successors, CanonicalGridExpander};
 
-use crate::GridMapper;
-
 pub struct FirstMoveComputer<'a> {
     map: &'a BitGrid,
-    mapper: &'a GridMapper,
     pool: GridPool,
     pqueue: BucketQueueFactory,
     g: NodeMemberPointer<f64>,
@@ -18,23 +15,17 @@ pub struct FirstMoveComputer<'a> {
 }
 
 impl<'a> FirstMoveComputer<'a> {
-    pub fn new(map: &'a BitGrid, mapper: &'a GridMapper) -> Self {
+    pub fn new(map: &'a BitGrid) -> Self {
         let mut builder = NodeBuilder::new();
         let state = builder.add_field((-1, -1));
         let successors = builder.add_field(EnumSet::all());
         let first_move = builder.add_field(EnumSet::all());
         let g = builder.add_field(f64::INFINITY);
         let pqueue = BucketQueueFactory::new(&mut builder);
-        let pool = GridPool::new(
-            builder.build_with_capacity(mapper.array.len()),
-            state,
-            map.width(),
-            map.height(),
-        );
+        let pool = GridPool::new(builder.build(), state, map.width(), map.height());
 
         FirstMoveComputer {
             map,
-            mapper,
             pool,
             pqueue,
             g,
@@ -43,10 +34,13 @@ impl<'a> FirstMoveComputer<'a> {
         }
     }
 
-    pub fn compute(&mut self, source: (i32, i32)) -> Vec<EnumSet<Direction>> {
+    pub fn compute(
+        &mut self,
+        source: (i32, i32),
+        mut fm_cb: impl FnMut((i32, i32), EnumSet<Direction>),
+    ) {
         let FirstMoveComputer {
             map,
-            mapper,
             ref mut pool,
             ref mut pqueue,
             g,
@@ -57,7 +51,6 @@ impl<'a> FirstMoveComputer<'a> {
 
         pool.reset();
 
-        let mut first_moves = vec![EnumSet::all(); mapper.num_ids()];
         let mut edges = vec![];
         let mut expander = CanonicalGridExpander::new(&map, pool);
         let mut open = pqueue.new_queue(g, 0.999);
@@ -80,7 +73,7 @@ impl<'a> FirstMoveComputer<'a> {
         }
 
         while let Some(node) = open.next() {
-            first_moves[mapper.state_to_id(node.get(state))] = node.get(first_move);
+            fm_cb(node.get(state), node.get(first_move));
             edges.clear();
             unsafe {
                 expander.expand_unchecked(node, &mut edges, node.get(successors));
@@ -116,7 +109,5 @@ impl<'a> FirstMoveComputer<'a> {
                 }
             }
         }
-
-        first_moves
     }
 }

@@ -8,7 +8,8 @@ pub fn compute_tiebreak_table(
 ) -> [EnumSet<Direction>; 256] {
     let valid_moves = canonical_successors(nb, None);
     let mut result = [EnumSet::empty(); 256];
-    // empty first move set is invalid, so skip it
+    // empty first move set is invalid, so skip it and put full wildcard
+    result[0] = EnumSet::all();
     for fm in 1..256 {
         let fm_dirs = EnumSet::from_u8(fm as u8);
         result[fm] = fm_dirs;
