@@ -2,9 +2,8 @@ use std::io::{Read, Write};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use ahash::HashMap;
 use enumset::EnumSet;
-use mkpath_grid::{BitGrid, Direction};
+use mkpath_grid::{BitGrid, Direction, Grid};
 use mkpath_jps::JumpDatabase;
 use rayon::prelude::*;
 
@@ -14,7 +13,7 @@ use crate::tiebreak::compute_tiebreak_table;
 
 pub struct PartialCellBb {
     jump_db: JumpDatabase,
-    partial_bb: HashMap<(i32, i32), [Rectangle; 8]>,
+    partial_bb: Grid<[Rectangle; 8]>,
 }
 
 struct Rectangle {
@@ -37,38 +36,40 @@ impl PartialCellBb {
         let num_jps = jump_points.len();
         let progress = Mutex::new((0, progress_callback));
 
-        let partial_bb: HashMap<_, _> = jump_points
-            .par_iter()
-            .map_init(
-                || FirstMoveComputer::new(map),
-                |fm_computer, (&source, &jps)| {
-                    let tiebreak_table =
-                        compute_tiebreak_table(map.get_neighborhood(source.0, source.1), jps);
+        let partial_bb = Mutex::new(Grid::new(
+            jump_db.map().width(),
+            jump_db.map().height(),
+            |_, _| [(); 8].map(|_| Rectangle::empty()),
+        ));
+        jump_points.par_iter().for_each_init(
+            || FirstMoveComputer::new(map),
+            |fm_computer, (&source, &jps)| {
+                let tiebreak_table =
+                    compute_tiebreak_table(map.get_neighborhood(source.0, source.1), jps);
 
-                    let mut result = [(); 8].map(|_| Rectangle::empty());
+                let mut result = [(); 8].map(|_| Rectangle::empty());
 
-                    fm_computer.compute(source, |(x, y), fm| {
-                        let fm = tiebreak_table[fm.as_usize()];
-                        let best = fm
-                            .iter()
-                            .min_by_key(|&d| result[d as usize].area_increase_from_grow(x, y))
-                            .unwrap();
-                        result[best as usize].grow(x, y);
-                    });
+                fm_computer.compute(source, |(x, y), fm| {
+                    let fm = tiebreak_table[fm.as_usize()];
+                    let best = fm
+                        .iter()
+                        .min_by_key(|&d| result[d as usize].area_increase_from_grow(x, y))
+                        .unwrap();
+                    result[best as usize].grow(x, y);
+                });
 
-                    let mut progress = progress.lock().unwrap();
-                    let (progress, callback) = &mut *progress;
-                    *progress += 1;
-                    callback(*progress, num_jps, start.elapsed());
+                let mut progress = progress.lock().unwrap();
+                let (progress, callback) = &mut *progress;
+                *progress += 1;
+                callback(*progress, num_jps, start.elapsed());
 
-                    (source, result)
-                },
-            )
-            .collect();
+                partial_bb.lock().unwrap()[source] = result;
+            },
+        );
 
         PartialCellBb {
             jump_db,
-            partial_bb,
+            partial_bb: partial_bb.into_inner().unwrap(),
         }
     }
 
@@ -81,7 +82,9 @@ impl PartialCellBb {
 
         let mut read_i32 = || from.read(&mut bytes).map(|_| i32::from_le_bytes(bytes));
 
-        let mut partial_bb = HashMap::default();
+        let mut partial_bb = Grid::new(jump_db.map().width(), jump_db.map().height(), |_, _| {
+            [(); 8].map(|_| Rectangle::empty())
+        });
         for _ in 0..num_jps {
             let x = read_i32()?;
             let y = read_i32()?;
@@ -100,7 +103,7 @@ impl PartialCellBb {
                     high_y: read_i32()?,
                 }
             }
-            partial_bb.insert((x, y), result);
+            partial_bb[(x, y)] = result;
         }
 
         Ok(PartialCellBb {
@@ -110,38 +113,57 @@ impl PartialCellBb {
     }
 
     pub fn save(&self, to: &mut impl Write) -> std::io::Result<()> {
-        to.write_all(&u32::to_le_bytes(self.partial_bb.len() as u32))?;
-        for ((x, y), rects) in &self.partial_bb {
-            to.write_all(&x.to_le_bytes())?;
-            to.write_all(&y.to_le_bytes())?;
-            for rect in rects {
-                to.write_all(&rect.low_x.to_le_bytes())?;
-                to.write_all(&rect.low_y.to_le_bytes())?;
-                to.write_all(&rect.high_x.to_le_bytes())?;
-                to.write_all(&rect.high_y.to_le_bytes())?;
+        let num = self
+            .partial_bb
+            .storage()
+            .iter()
+            .filter(|rects| rects.iter().any(|r| !r.is_empty()))
+            .count();
+        to.write_all(&u32::to_le_bytes(num as u32))?;
+        for y in 0..self.partial_bb.height() {
+            for x in 0..self.partial_bb.width() {
+                let rects = &self.partial_bb[(x, y)];
+                if rects.iter().all(|r| r.is_empty()) {
+                    continue;
+                }
+                to.write_all(&x.to_le_bytes())?;
+                to.write_all(&y.to_le_bytes())?;
+                for rect in rects {
+                    to.write_all(&rect.low_x.to_le_bytes())?;
+                    to.write_all(&rect.low_y.to_le_bytes())?;
+                    to.write_all(&rect.high_x.to_le_bytes())?;
+                    to.write_all(&rect.high_y.to_le_bytes())?;
+                }
             }
         }
         Ok(())
     }
 
     pub fn query(&self, pos: (i32, i32), target: (i32, i32)) -> Option<EnumSet<Direction>> {
-        self.partial_bb.get(&pos).map(|rects| {
-            let r: EnumSet<Direction> = [
-                Direction::North,
-                Direction::West,
-                Direction::South,
-                Direction::East,
-                Direction::NorthWest,
-                Direction::SouthWest,
-                Direction::SouthEast,
-                Direction::NorthEast,
-            ]
-            .into_iter()
-            .filter(|&d| rects[d as usize].contains(target.0, target.1))
-            .collect();
-            assert!(!r.is_empty());
-            r
-        })
+        let rects = &self.partial_bb[pos];
+        let mut any_nonempty = false;
+        let mut dirs = EnumSet::empty();
+        for d in [
+            Direction::North,
+            Direction::West,
+            Direction::South,
+            Direction::East,
+            Direction::NorthWest,
+            Direction::SouthWest,
+            Direction::SouthEast,
+            Direction::NorthEast,
+        ] {
+            any_nonempty |= !rects[d as usize].is_empty();
+            if rects[d as usize].contains(target.0, target.1) {
+                dirs |= d;
+            }
+        }
+        if any_nonempty {
+            assert!(!dirs.is_empty());
+            Some(dirs)
+        } else {
+            None
+        }
     }
 
     pub fn map(&self) -> &BitGrid {
