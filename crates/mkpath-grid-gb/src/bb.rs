@@ -13,7 +13,7 @@ use crate::tiebreak::compute_tiebreak_table;
 
 pub struct PartialCellBb {
     jump_db: JumpDatabase,
-    partial_bb: Grid<[Rectangle; 8]>,
+    partial_bb: Grid<Option<[Rectangle; 8]>>,
 }
 
 struct Rectangle {
@@ -39,7 +39,7 @@ impl PartialCellBb {
         let partial_bb = Mutex::new(Grid::new(
             jump_db.map().width(),
             jump_db.map().height(),
-            |_, _| [(); 8].map(|_| Rectangle::empty()),
+            |_, _| None,
         ));
         jump_points.par_iter().for_each_init(
             || FirstMoveComputer::new(map),
@@ -63,7 +63,7 @@ impl PartialCellBb {
                 *progress += 1;
                 callback(*progress, num_jps, start.elapsed());
 
-                partial_bb.lock().unwrap()[source] = result;
+                partial_bb.lock().unwrap()[source] = Some(result);
             },
         );
 
@@ -82,9 +82,7 @@ impl PartialCellBb {
 
         let mut read_i32 = || from.read(&mut bytes).map(|_| i32::from_le_bytes(bytes));
 
-        let mut partial_bb = Grid::new(jump_db.map().width(), jump_db.map().height(), |_, _| {
-            [(); 8].map(|_| Rectangle::empty())
-        });
+        let mut partial_bb = Grid::new(jump_db.map().width(), jump_db.map().height(), |_, _| None);
         for _ in 0..num_jps {
             let x = read_i32()?;
             let y = read_i32()?;
@@ -103,7 +101,7 @@ impl PartialCellBb {
                     high_y: read_i32()?,
                 }
             }
-            partial_bb[(x, y)] = result;
+            partial_bb[(x, y)] = Some(result);
         }
 
         Ok(PartialCellBb {
@@ -122,10 +120,9 @@ impl PartialCellBb {
         to.write_all(&u32::to_le_bytes(num as u32))?;
         for y in 0..self.partial_bb.height() {
             for x in 0..self.partial_bb.width() {
-                let rects = &self.partial_bb[(x, y)];
-                if rects.iter().all(|r| r.is_empty()) {
+                let Some(rects) = &self.partial_bb[(x, y)] else {
                     continue;
-                }
+                };
                 to.write_all(&x.to_le_bytes())?;
                 to.write_all(&y.to_le_bytes())?;
                 for rect in rects {
@@ -139,31 +136,21 @@ impl PartialCellBb {
         Ok(())
     }
 
-    pub fn query(&self, pos: (i32, i32), target: (i32, i32)) -> Option<EnumSet<Direction>> {
-        let rects = &self.partial_bb[pos];
-        let mut any_nonempty = false;
-        let mut dirs = EnumSet::empty();
-        for d in [
-            Direction::North,
-            Direction::West,
-            Direction::South,
-            Direction::East,
-            Direction::NorthWest,
-            Direction::SouthWest,
-            Direction::SouthEast,
-            Direction::NorthEast,
-        ] {
-            any_nonempty |= !rects[d as usize].is_empty();
-            if rects[d as usize].contains(target.0, target.1) {
-                dirs |= d;
+    pub fn filter(
+        &self,
+        pos: (i32, i32),
+        target: (i32, i32),
+        mut canonical: EnumSet<Direction>,
+    ) -> EnumSet<Direction> {
+        let Some(rects) = &self.partial_bb[pos] else {
+            return canonical;
+        };
+        for d in canonical {
+            if !rects[d as usize].contains(target.0, target.1) {
+                canonical.remove(d);
             }
         }
-        if any_nonempty {
-            assert!(!dirs.is_empty());
-            Some(dirs)
-        } else {
-            None
-        }
+        canonical
     }
 
     pub fn map(&self) -> &BitGrid {

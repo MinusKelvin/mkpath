@@ -96,19 +96,15 @@ impl<'a, P: GridStateMapper> JpsBbExpander<'a, P> {
                 break;
             }
 
-            if let Some(dirs) = self.oracle.query((x, y), self.target) {
-                if dirs.contains(dir_x) {
-                    self.jump_ortho(x, y, dir_x, cost, edges);
-                }
-                if dirs.contains(dir_y) {
-                    self.jump_ortho(x, y, dir_y, cost, edges);
-                }
-                if !dirs.contains(dir) {
-                    break;
-                }
-            } else {
+            let dirs = self.oracle.filter((x, y), self.target, dir | dir_x | dir_y);
+            if dirs.contains(dir_x) {
                 self.jump_ortho(x, y, dir_x, cost, edges);
+            }
+            if dirs.contains(dir_y) {
                 self.jump_ortho(x, y, dir_y, cost, edges);
+            }
+            if !dirs.contains(dir) {
+                break;
             }
         }
     }
@@ -125,13 +121,11 @@ impl<'a, P: GridStateMapper> Expander<'a> for JpsBbExpander<'a, P> {
             mkpath_jps::reached_direction((px, py), (x, y))
         });
 
-        let mut successors = canonical_successors(self.oracle.map().get_neighborhood(x, y), dir);
-
-        let first_move = self.oracle.query((x, y), self.target);
-
-        if let Some(dirs) = first_move {
-            successors &= dirs;
-        }
+        let successors = self.oracle.filter(
+            (x, y),
+            self.target,
+            canonical_successors(self.oracle.map().get_neighborhood(x, y), dir),
+        );
 
         unsafe {
             // All jumps have the traversability of the relevant tile checked via successor set.
