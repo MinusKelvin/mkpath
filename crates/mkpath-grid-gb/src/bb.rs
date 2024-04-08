@@ -17,10 +17,10 @@ pub struct PartialCellBb {
 }
 
 struct Rectangle {
-    low_x: i32,
-    low_y: i32,
-    high_x: i32,
-    high_y: i32,
+    low_x: i16,
+    low_y: i16,
+    high_x: i16,
+    high_y: i16,
 }
 
 impl PartialCellBb {
@@ -28,6 +28,7 @@ impl PartialCellBb {
         map: BitGrid,
         progress_callback: impl FnMut(usize, usize, Duration) + Send,
     ) -> Self {
+        // note: this checks that valid coordinates are inside i16 range
         let jump_db = JumpDatabase::new(map);
         let map = jump_db.map();
         let jump_points = independent_jump_points(map, &jump_db);
@@ -53,9 +54,11 @@ impl PartialCellBb {
                     let fm = tiebreak_table[fm.as_usize()];
                     let best = fm
                         .iter()
-                        .min_by_key(|&d| result[d as usize].area_increase_from_grow(x, y))
+                        .min_by_key(|&d| {
+                            result[d as usize].area_increase_from_grow(x as i16, y as i16)
+                        })
                         .unwrap();
-                    result[best as usize].grow(x, y);
+                    result[best as usize].grow(x as i16, y as i16);
                 });
 
                 let mut progress = progress.lock().unwrap();
@@ -80,12 +83,13 @@ impl PartialCellBb {
         from.read_exact(&mut bytes)?;
         let num_jps = u32::from_le_bytes(bytes) as usize;
 
-        let mut read_i32 = || from.read(&mut bytes).map(|_| i32::from_le_bytes(bytes));
+        let mut bytes = [0; 2];
+        let mut read_i16 = || from.read(&mut bytes).map(|_| i16::from_le_bytes(bytes));
 
         let mut partial_bb = Grid::new(jump_db.map().width(), jump_db.map().height(), |_, _| None);
         for _ in 0..num_jps {
-            let x = read_i32()?;
-            let y = read_i32()?;
+            let x = read_i16()? as i32;
+            let y = read_i16()? as i32;
 
             assert!(x >= 0);
             assert!(y >= 0);
@@ -95,10 +99,10 @@ impl PartialCellBb {
             let mut result = [(); 8].map(|_| Rectangle::empty());
             for dir in 0..8 {
                 result[dir] = Rectangle {
-                    low_x: read_i32()?,
-                    low_y: read_i32()?,
-                    high_x: read_i32()?,
-                    high_y: read_i32()?,
+                    low_x: read_i16()?,
+                    low_y: read_i16()?,
+                    high_x: read_i16()?,
+                    high_y: read_i16()?,
                 }
             }
             partial_bb[(x, y)] = Some(result);
@@ -123,8 +127,8 @@ impl PartialCellBb {
                 let Some(rects) = &self.partial_bb[(x, y)] else {
                     continue;
                 };
-                to.write_all(&x.to_le_bytes())?;
-                to.write_all(&y.to_le_bytes())?;
+                to.write_all(&(x as i16).to_le_bytes())?;
+                to.write_all(&(y as i16).to_le_bytes())?;
                 for rect in rects {
                     to.write_all(&rect.low_x.to_le_bytes())?;
                     to.write_all(&rect.low_y.to_le_bytes())?;
@@ -176,7 +180,7 @@ impl Rectangle {
         self.low_x == self.high_x && self.low_y == self.high_y
     }
 
-    fn grow(&mut self, x: i32, y: i32) {
+    fn grow(&mut self, x: i16, y: i16) {
         if self.is_empty() {
             self.low_x = x;
             self.low_y = y;
@@ -190,18 +194,21 @@ impl Rectangle {
         }
     }
 
-    fn area_increase_from_grow(&self, x: i32, y: i32) -> i32 {
+    fn area_increase_from_grow(&self, x: i16, y: i16) -> i32 {
         if self.is_empty() {
             return 1;
         }
-        let growth_x = (self.low_x - x).max(x - self.high_x).max(0);
-        let growth_y = (self.low_y - y).max(y - self.high_y).max(0);
-        growth_x * (self.high_y - self.low_y)
-            + growth_y * (self.high_x - self.low_x)
+        let growth_x = (self.low_x - x).max(x - self.high_x).max(0) as i32;
+        let growth_y = (self.low_y - y).max(y - self.high_y).max(0) as i32;
+        growth_x * (self.high_y - self.low_y) as i32
+            + growth_y * (self.high_x - self.low_x) as i32
             + growth_x * growth_y
     }
 
     fn contains(&self, x: i32, y: i32) -> bool {
-        x >= self.low_x && y >= self.low_y && x < self.high_x && y < self.high_y
+        x >= self.low_x as i32
+            && y >= self.low_y as i32
+            && x < self.high_x as i32
+            && y < self.high_y as i32
     }
 }
