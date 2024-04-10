@@ -22,49 +22,90 @@ pub struct PartialCellCpd {
 impl PartialCellCpd {
     pub fn compute(
         map: BitGrid,
-        progress_callback: impl FnMut(usize, usize, Duration) + Send,
+        mut progress_callback: impl FnMut(usize, usize, Duration) + Send,
     ) -> Self {
         let jump_db = JumpDatabase::new(map);
-        let map = jump_db.map();
-        let mapper = GridMapper::dfs_preorder(map);
-        let jump_points = independent_jump_points(map, &jump_db);
-
-        let start = std::time::Instant::now();
-        let num_jps = jump_points.len();
-        let progress = Mutex::new((0, progress_callback));
-
-        let partial_cpd: HashMap<_, _> = jump_points
-            .par_iter()
-            .map_init(
-                || FirstMoveComputer::new(map),
-                |fm_computer, (&source, &jps)| {
-                    let mut first_moves = vec![EnumSet::all(); mapper.array.len()];
-                    fm_computer
-                        .compute(source, |pos, fm| first_moves[mapper.state_to_id(pos)] = fm);
-
-                    let tiebreak_table =
-                        compute_tiebreak_table(map.get_neighborhood(source.0, source.1), jps);
-                    let result = CpdRow::compress(
-                        first_moves
-                            .into_iter()
-                            .map(|fm| tiebreak_table[fm.as_usize()].as_u64()),
-                    );
-
-                    let mut progress = progress.lock().unwrap();
-                    let (progress, callback) = &mut *progress;
-                    *progress += 1;
-                    callback(*progress, num_jps, start.elapsed());
-
-                    (source, result)
-                },
-            )
-            .collect();
+        let mapper = GridMapper::dfs_preorder(jump_db.map());
+        let jump_points = independent_jump_points(&jump_db);
+        let mut partial_cpd = HashMap::default();
+        Self::compute_impl(
+            &jump_db,
+            &mapper,
+            jump_points,
+            |progress, total, time, source, result| {
+                partial_cpd.insert(source, result);
+                progress_callback(progress, total, time);
+                Ok(())
+            },
+        )
+        .unwrap();
 
         PartialCellCpd {
             mapper,
             jump_db,
             partial_cpd,
         }
+    }
+
+    pub fn compute_to_file(
+        map: BitGrid,
+        to: &mut (impl Write + Send),
+        mut progress_callback: impl FnMut(usize, usize, Duration) + Send,
+    ) -> std::io::Result<()> {
+        let jump_db = JumpDatabase::new(map);
+        let mapper = GridMapper::dfs_preorder(jump_db.map());
+        let jump_points = independent_jump_points(&jump_db);
+        mapper.save(to)?;
+        to.write_all(&u32::to_le_bytes(jump_points.len() as u32))?;
+        Self::compute_impl(
+            &jump_db,
+            &mapper,
+            jump_points,
+            |progress, total, time, (x, y), result| {
+                to.write_all(&x.to_le_bytes())?;
+                to.write_all(&y.to_le_bytes())?;
+                result.save(to)?;
+                progress_callback(progress, total, time);
+                Ok(())
+            },
+        )
+    }
+
+    fn compute_impl<F>(
+        jump_db: &JumpDatabase,
+        mapper: &GridMapper,
+        jump_points: HashMap<(i32, i32), EnumSet<Direction>>,
+        iter_done: F,
+    ) -> std::io::Result<()>
+    where
+        F: FnMut(usize, usize, Duration, (i32, i32), CpdRow) -> std::io::Result<()> + Send,
+    {
+        let map = jump_db.map();
+
+        let start = std::time::Instant::now();
+        let num_jps = jump_points.len();
+        let progress = Mutex::new((0, iter_done));
+
+        jump_points.par_iter().try_for_each_init(
+            || FirstMoveComputer::new(map),
+            |fm_computer, (&source, &jps)| {
+                let mut first_moves = vec![EnumSet::all(); mapper.array.len()];
+                fm_computer.compute(source, |pos, fm| first_moves[mapper.state_to_id(pos)] = fm);
+
+                let tiebreak_table =
+                    compute_tiebreak_table(map.get_neighborhood(source.0, source.1), jps);
+                let result = CpdRow::compress(
+                    first_moves
+                        .into_iter()
+                        .map(|fm| tiebreak_table[fm.as_usize()].as_u64()),
+                );
+
+                let mut progress = progress.lock().unwrap();
+                let (progress, callback) = &mut *progress;
+                *progress += 1;
+                callback(*progress, num_jps, start.elapsed(), source, result)
+            },
+        )
     }
 
     pub fn load(map: BitGrid, from: &mut impl Read) -> std::io::Result<Self> {

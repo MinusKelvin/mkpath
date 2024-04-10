@@ -31,7 +31,7 @@ impl PartialCellBb {
         // note: this checks that valid coordinates are inside i16 range
         let jump_db = JumpDatabase::new(map);
         let map = jump_db.map();
-        let jump_points = independent_jump_points(map, &jump_db);
+        let jump_points = independent_jump_points(&jump_db);
 
         let start = std::time::Instant::now();
         let num_jps = jump_points.len();

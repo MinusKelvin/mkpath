@@ -10,20 +10,19 @@ use mkpath_jps::{canonical_successors, JumpDatabase};
 mod bb;
 mod cpd;
 mod first_move;
+mod jps_bb_expander;
 mod tiebreak;
 mod tops_expander;
-mod jps_bb_expander;
 
 pub use self::bb::*;
 pub use self::cpd::*;
-pub use self::tops_expander::*;
 pub use self::jps_bb_expander::*;
+pub use self::tops_expander::*;
 
-fn independent_jump_points(
-    map: &BitGrid,
-    jump_db: &JumpDatabase,
-) -> HashMap<(i32, i32), EnumSet<Direction>> {
+fn independent_jump_points(jump_db: &JumpDatabase) -> HashMap<(i32, i32), EnumSet<Direction>> {
     use Direction::*;
+
+    let map = jump_db.map();
 
     let diagonals = NorthWest | SouthWest | NorthEast | SouthEast;
 
