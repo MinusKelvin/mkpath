@@ -5,7 +5,7 @@ use std::time::Duration;
 use ahash::HashMap;
 use enumset::EnumSet;
 use mkpath_cpd::{CpdRow, StateIdMapper};
-use mkpath_grid::{BitGrid, Direction};
+use mkpath_grid::{BitGrid, Direction, Grid};
 use mkpath_jps::JumpDatabase;
 use rayon::prelude::*;
 
@@ -16,7 +16,7 @@ use crate::{independent_jump_points, GridMapper};
 pub struct PartialCellCpd {
     mapper: GridMapper,
     jump_db: JumpDatabase,
-    partial_cpd: HashMap<(i32, i32), CpdRow>,
+    partial_cpd: Grid<Option<CpdRow>>,
 }
 
 impl PartialCellCpd {
@@ -27,13 +27,13 @@ impl PartialCellCpd {
         let jump_db = JumpDatabase::new(map);
         let mapper = GridMapper::dfs_preorder(jump_db.map());
         let jump_points = independent_jump_points(&jump_db);
-        let mut partial_cpd = HashMap::default();
+        let mut partial_cpd = Grid::new(jump_db.map().width(), jump_db.map().height(), |_, _| None);
         Self::compute_impl(
             &jump_db,
             &mapper,
             jump_points,
             |progress, total, time, source, result| {
-                partial_cpd.insert(source, result);
+                partial_cpd[source] = Some(result);
                 progress_callback(progress, total, time);
                 Ok(())
             },
@@ -116,7 +116,7 @@ impl PartialCellCpd {
         from.read_exact(&mut bytes)?;
         let num_jps = u32::from_le_bytes(bytes) as usize;
 
-        let mut partial_cpd = HashMap::default();
+        let mut partial_cpd = Grid::new(jump_db.map().width(), jump_db.map().height(), |_, _| None);
         for _ in 0..num_jps {
             from.read_exact(&mut bytes)?;
             let x = i32::from_le_bytes(bytes);
@@ -128,7 +128,7 @@ impl PartialCellCpd {
             assert!(x < jump_db.map().width());
             assert!(y < jump_db.map().height());
 
-            partial_cpd.insert((x, y), CpdRow::load(from)?);
+            partial_cpd[(x, y)] = Some(CpdRow::load(from)?);
         }
 
         Ok(PartialCellCpd {
@@ -140,18 +140,29 @@ impl PartialCellCpd {
 
     pub fn save(&self, to: &mut impl Write) -> std::io::Result<()> {
         self.mapper.save(to)?;
-        to.write_all(&u32::to_le_bytes(self.partial_cpd.len() as u32))?;
-        for ((x, y), row) in &self.partial_cpd {
-            to.write_all(&x.to_le_bytes())?;
-            to.write_all(&y.to_le_bytes())?;
-            row.save(to)?;
+        let num_entries = self
+            .partial_cpd
+            .storage()
+            .iter()
+            .filter(|row| row.is_some())
+            .count();
+        to.write_all(&u32::to_le_bytes(num_entries as u32))?;
+        for y in 0..self.partial_cpd.height() {
+            for x in 0..self.partial_cpd.width() {
+                let Some(row) = &self.partial_cpd[(x, y)] else {
+                    continue;
+                };
+                to.write_all(&x.to_le_bytes())?;
+                to.write_all(&y.to_le_bytes())?;
+                row.save(to)?;
+            }
         }
         Ok(())
     }
 
     pub fn query(&self, pos: (i32, i32), target: (i32, i32)) -> Option<Direction> {
-        self.partial_cpd
-            .get(&pos)
+        self.partial_cpd[pos]
+            .as_ref()
             .and_then(|row| row.lookup(self.mapper.state_to_id(target)).try_into().ok())
     }
 
