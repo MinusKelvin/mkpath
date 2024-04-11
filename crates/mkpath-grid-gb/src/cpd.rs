@@ -10,8 +10,9 @@ use mkpath_jps::JumpDatabase;
 use rayon::prelude::*;
 
 use crate::first_move::FirstMoveComputer;
+use crate::independent_jump_points;
+use crate::mapper::GridMapper;
 use crate::tiebreak::compute_tiebreak_table;
-use crate::{independent_jump_points, GridMapper};
 
 pub struct PartialCellCpd {
     mapper: GridMapper,
@@ -89,7 +90,7 @@ impl PartialCellCpd {
         jump_points.par_iter().try_for_each_init(
             || FirstMoveComputer::new(map),
             |fm_computer, (&source, &jps)| {
-                let mut first_moves = vec![EnumSet::all(); mapper.array.len()];
+                let mut first_moves = vec![EnumSet::all(); mapper.num_ids()];
                 fm_computer.compute(source, |pos, fm| first_moves[mapper.state_to_id(pos)] = fm);
 
                 let tiebreak_table =
