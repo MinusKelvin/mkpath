@@ -29,7 +29,7 @@ fn main() {
         build_cpd(&opt.path, &cpd_file).unwrap();
     } else {
         let t1 = std::time::Instant::now();
-    
+
         let scen = movingai::read_scenario(&opt.path).unwrap();
         let map = movingai::read_bitgrid(&scen.map).unwrap();
         let mut cpd_file = scen.map.clone();
@@ -197,7 +197,7 @@ fn load_cpd(
     cpd_file: &Path,
     width: i32,
     height: i32,
-) -> std::io::Result<(GridMapper, Vec<CpdRow>)> {
+) -> std::io::Result<(GridMapper, Vec<Box<CpdRow>>)> {
     let mut cpd_file = BufReader::new(File::open(cpd_file)?);
 
     let mut bytes = [0; 4];

@@ -17,7 +17,7 @@ use crate::tiebreak::compute_tiebreak_table;
 pub struct PartialCellCpd {
     mapper: GridMapper,
     jump_db: JumpDatabase,
-    partial_cpd: Grid<Option<CpdRow>>,
+    partial_cpd: Grid<Option<Box<CpdRow>>>,
 }
 
 impl PartialCellCpd {
@@ -79,7 +79,7 @@ impl PartialCellCpd {
         iter_done: F,
     ) -> std::io::Result<()>
     where
-        F: FnMut(usize, usize, Duration, (i32, i32), CpdRow) -> std::io::Result<()> + Send,
+        F: FnMut(usize, usize, Duration, (i32, i32), Box<CpdRow>) -> std::io::Result<()> + Send,
     {
         let map = jump_db.map();
 

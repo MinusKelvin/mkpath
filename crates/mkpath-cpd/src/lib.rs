@@ -37,8 +37,9 @@ pub fn dfs_traversal<'a, E: Expander<'a, Edge = Edge>, Edge: Successor<'a>>(
     }
 }
 
+#[repr(transparent)]
 pub struct CpdRow {
-    runs: Box<[CpdEntry]>,
+    runs: [CpdEntry],
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -55,6 +56,13 @@ impl CpdEntry {
 }
 
 impl CpdRow {
+    fn from_raw_box(slice: Box<[CpdEntry]>) -> Box<CpdRow> {
+        unsafe {
+            // SAFETY: `CpdRow` wraps a `[CpdEntry]` transparently, so this is safe
+            std::mem::transmute(slice)
+        }
+    }
+
     pub fn compute<'a, M, S, Exp, Edge, Open>(
         mapper: &M,
         searcher: &mut FirstMoveSearcher,
@@ -62,7 +70,7 @@ impl CpdRow {
         open: Open,
         start: NodeRef<'a>,
         state: NodeMemberPointer<S>,
-    ) -> Self
+    ) -> Box<CpdRow>
     where
         S: Copy + 'static,
         M: StateIdMapper<State = S>,
@@ -80,7 +88,7 @@ impl CpdRow {
         Self::compress(first_moves)
     }
 
-    pub fn compress(first_move_bits: impl IntoIterator<Item = u64>) -> CpdRow {
+    pub fn compress(first_move_bits: impl IntoIterator<Item = u64>) -> Box<CpdRow> {
         let mut runs = vec![];
         let mut current_id = 0;
         let mut current_moves = !0;
@@ -94,9 +102,7 @@ impl CpdRow {
             }
         }
 
-        CpdRow {
-            runs: runs.into_boxed_slice(),
-        }
+        Self::from_raw_box(runs.into_boxed_slice())
     }
 
     pub fn lookup(&self, id: usize) -> usize {
@@ -109,24 +115,23 @@ impl CpdRow {
 
     pub fn save(&self, to: &mut impl Write) -> std::io::Result<()> {
         to.write_all(&(self.runs.len() as u32).to_le_bytes())?;
-        for &run in &*self.runs {
+        for &run in &self.runs {
             to.write_all(&run.0.to_le_bytes())?;
         }
         Ok(())
     }
 
-    pub fn load(from: &mut impl Read) -> std::io::Result<Self> {
+    pub fn load(from: &mut impl Read) -> std::io::Result<Box<Self>> {
         let mut bytes = [0; 4];
         from.read_exact(&mut bytes)?;
         let len = u32::from_le_bytes(bytes) as usize;
-        Ok(CpdRow {
-            runs: (0..len)
-                .map(|_| {
-                    from.read_exact(&mut bytes)?;
-                    Ok(CpdEntry(u32::from_le_bytes(bytes)))
-                })
-                .collect::<std::io::Result<_>>()?,
-        })
+        let rows = (0..len)
+            .map(|_| {
+                from.read_exact(&mut bytes)?;
+                Ok(CpdEntry(u32::from_le_bytes(bytes)))
+            })
+            .collect::<std::io::Result<_>>()?;
+        Ok(Self::from_raw_box(rows))
     }
 }
 
