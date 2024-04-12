@@ -99,8 +99,10 @@ impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
             if let Some(first_move) = self.oracle.query((x, y), self.target) {
                 if first_move == dir_x {
                     self.jump_ortho(x, y, dir_x, cost, edges);
+                    break;
                 } else if first_move == dir_y {
                     self.jump_ortho(x, y, dir_y, cost, edges);
+                    break;
                 } else if first_move != dir {
                     break;
                 }

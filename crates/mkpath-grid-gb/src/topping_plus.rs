@@ -1,9 +1,9 @@
 use mkpath_core::traits::Expander;
 use mkpath_core::{HashPool, NodeBuilder, NodeMemberPointer};
 use mkpath_grid::{octile_distance, Direction};
-use mkpath_jps::{canonical_successors, reached_direction, JpsPlusExpander};
+use mkpath_jps::{canonical_successors, reached_direction};
 
-use crate::PartialCellCpd;
+use crate::{PartialCellCpd, TopsExpander};
 
 pub struct ToppingPlus<'a> {
     cpd: &'a PartialCellCpd,
@@ -35,8 +35,7 @@ impl<'a> ToppingPlus<'a> {
         target_node.set(cost, 0.0);
 
         let mut starts = vec![];
-        JpsPlusExpander::new(self.cpd.jump_db(), &self.node_pool, target)
-            .expand(start_node, &mut starts);
+        TopsExpander::new(self.cpd, &self.node_pool, target).expand(start_node, &mut starts);
 
         let mut node_stack = vec![];
 
@@ -57,10 +56,10 @@ impl<'a> ToppingPlus<'a> {
                 let canonical =
                     canonical_successors(self.cpd.map().get_neighborhood(state.0, state.1), going);
 
-                let dir = match self.cpd.query(state, target) {
-                    Some(v) => v,
-                    None => panic!("{state:?} during pathfind from {start:?} to {target:?}"),
-                };
+                let dir = self
+                    .cpd
+                    .query(state, target)
+                    .expect("cpd did not have move for jump point");
 
                 if !canonical.contains(dir) {
                     continue 'start_successor;
@@ -68,10 +67,10 @@ impl<'a> ToppingPlus<'a> {
 
                 let next_state = match dir {
                     Direction::North => unsafe {
-                        // SAFETY: We know that JpsPlusExander produces successors whose coordinates
-                        //         are in-bounds, and we know that jumping with the jump distance
-                        //         database gives us coordinates that are in-bounds, so state will
-                        //         always be in-bounds. Similar for below calls.
+                        // SAFETY: We know that JpsPlusExpander produces successors whose
+                        //         coordinates are in-bounds, and we know that jumping with the
+                        //         jump distance database gives us coordinates that are in-bounds,
+                        //         so state will always be in-bounds. Similar for below calls.
                         let dist = self
                             .cpd
                             .jump_db()
