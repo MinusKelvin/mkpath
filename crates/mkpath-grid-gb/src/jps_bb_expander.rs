@@ -13,6 +13,17 @@ pub struct JpsBbExpander<'a, P> {
 
 impl<'a, P: GridStateMapper> JpsBbExpander<'a, P> {
     pub fn new(oracle: &'a PartialCellBb, node_pool: &'a P, target: (i32, i32)) -> Self {
+        // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
+        // node pool.
+        assert!(
+            node_pool.width() >= oracle.map().width(),
+            "node pool must be wide enough for the map"
+        );
+        assert!(
+            node_pool.height() >= oracle.map().height(),
+            "node pool must be tall enough for the map"
+        );
+
         JpsBbExpander {
             node_pool,
             oracle,

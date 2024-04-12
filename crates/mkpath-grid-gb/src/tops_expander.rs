@@ -13,6 +13,17 @@ pub struct TopsExpander<'a, P> {
 
 impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
     pub fn new(oracle: &'a PartialCellCpd, node_pool: &'a P, target: (i32, i32)) -> Self {
+        // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
+        // node pool.
+        assert!(
+            node_pool.width() >= oracle.map().width(),
+            "node pool must be wide enough for the map"
+        );
+        assert!(
+            node_pool.height() >= oracle.map().height(),
+            "node pool must be tall enough for the map"
+        );
+
         TopsExpander {
             node_pool,
             oracle,

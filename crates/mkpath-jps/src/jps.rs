@@ -16,6 +16,17 @@ pub struct JpsExpander<'a, P> {
 
 impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
     pub fn new(map: &'a JpsGrid, node_pool: &'a P, target: (i32, i32)) -> Self {
+        // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
+        // node pool.
+        assert!(
+            node_pool.width() >= map.map.width(),
+            "node pool must be wide enough for the map"
+        );
+        assert!(
+            node_pool.height() >= map.map.height(),
+            "node pool must be tall enough for the map"
+        );
+
         JpsExpander {
             node_pool,
             map,

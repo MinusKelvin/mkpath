@@ -16,6 +16,17 @@ pub struct JpsPlusExpander<'a, P> {
 
 impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
     pub fn new(jump_db: &'a JumpDatabase, node_pool: &'a P, target: (i32, i32)) -> Self {
+        // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
+        // node pool.
+        assert!(
+            node_pool.width() >= jump_db.map().width(),
+            "node pool must be wide enough for the map"
+        );
+        assert!(
+            node_pool.height() >= jump_db.map().height(),
+            "node pool must be tall enough for the map"
+        );
+
         JpsPlusExpander {
             node_pool,
             jump_db,
