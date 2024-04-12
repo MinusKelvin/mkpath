@@ -10,11 +10,13 @@ mod jps_bb_expander;
 mod mapper;
 mod tiebreak;
 mod tops_expander;
+mod topping_plus;
 
 pub use self::bb::*;
 pub use self::cpd::*;
 pub use self::jps_bb_expander::*;
 pub use self::tops_expander::*;
+pub use self::topping_plus::*;
 
 fn independent_jump_points(jump_db: &JumpDatabase) -> HashMap<(i32, i32), EnumSet<Direction>> {
     use Direction::*;
