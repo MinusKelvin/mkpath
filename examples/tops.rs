@@ -25,7 +25,9 @@ fn main() {
 
         let map = movingai::read_bitgrid(&opt.path).unwrap();
 
-        let oracle = PartialCellCpd::compute(map, |progress, total, time| {
+        let mut file = BufWriter::new(File::create(cpd_file).unwrap());
+
+        PartialCellCpd::compute_to_file(map, &mut file, |progress, total, time| {
             let done = progress == total;
             let progress = progress as f64 / total as f64;
             let ttg = if done {
@@ -44,12 +46,9 @@ fn main() {
                 ttg % 60,
             );
             stdout.flush().unwrap();
-        });
+        })
+        .unwrap();
         println!();
-
-        oracle
-            .save(&mut BufWriter::new(File::create(cpd_file).unwrap()))
-            .unwrap();
     } else {
         let t1 = std::time::Instant::now();
 
