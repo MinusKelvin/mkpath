@@ -102,15 +102,24 @@ impl CpdRow {
             }
         }
 
+        let sorted = runs.clone();
+        reorder_eytzinger(&mut sorted.into_iter(), &mut runs, 0);
+
         Self::from_raw_box(runs.into_boxed_slice())
     }
 
     pub fn lookup(&self, id: usize) -> usize {
-        let index = match self.runs.binary_search_by_key(&id, |run| run.start()) {
-            Ok(idx) => idx,
-            Err(idx) => idx - 1,
-        };
-        self.runs[index].edge()
+        let mut i = 0;
+        let mut result = 0;
+        while i < self.runs.len() {
+            if id < self.runs[i].start() {
+                i = 2 * i + 1;
+            } else {
+                result = self.runs[i].edge();
+                i = 2 * i + 2;
+            }
+        }
+        result
     }
 
     pub fn save(&self, to: &mut impl Write) -> std::io::Result<()> {
@@ -280,5 +289,14 @@ impl<'a> OpenList<'a> for BucketQueue<'a> {
         let bucket = &mut self.queue[new_index];
         node.set(self.bucket_pos, (new_bucket, bucket.len() as u32));
         bucket.push(node);
+    }
+}
+
+/// Re-orders the array into Eytzinger order, allowing slightly faster lookup than binary search.
+fn reorder_eytzinger(items: &mut impl Iterator<Item = CpdEntry>, into: &mut [CpdEntry], k: usize) {
+    if k < into.len() {
+        reorder_eytzinger(items, into, 2 * k + 1);
+        into[k] = items.next().unwrap();
+        reorder_eytzinger(items, into, 2 * k + 2);
     }
 }
