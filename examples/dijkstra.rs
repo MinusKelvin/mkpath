@@ -54,11 +54,13 @@ fn main() {
             edges.clear();
             expander.expand(node, &mut edges);
 
+            let node_g = node.get(g);
+
             for &GridEdge {
                 successor, cost, ..
             } in &edges
             {
-                let new_g = node.get(g) + cost;
+                let new_g = node_g + cost;
                 if new_g < successor.get(g) {
                     successor.set_parent(Some(node));
                     successor.set(g, new_g);

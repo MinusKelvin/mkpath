@@ -62,9 +62,11 @@ impl AStarSearcher {
             edges.clear();
             expander.expand(node, &mut edges);
 
+            let node_g = node.get(g);
+
             for edge in &edges {
                 let successor = edge.successor();
-                let new_g = node.get(g) + edge.cost();
+                let new_g = node_g + edge.cost();
                 if new_g < successor.get(g) {
                     if successor.get(h).is_nan() {
                         successor.set(h, heuristic(successor));

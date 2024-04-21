@@ -1,3 +1,22 @@
+//! # `mkpath-grid-gb`
+//! 
+//! Goal Bounding techniques for grid pathfinding.
+//! 
+//! This crate implements algorithms from *Regarding goal bounding and jump point search*
+//! (Hu et al, 2021) which utilize partial goal bounding data:
+//! - JPS+BB+ (JPS+ augmented with geometric containers for move pruning)
+//! - TOPS (JPS+ augmented with first-move data)
+//! - Topping+ (Path extraction from first-move data)
+//! 
+//! todo: add variants using full goal bounding data:
+//! JPS+BB (Rabin & Sturtevant, 2016), Topping (Salvetti et al, 2018)
+//! 
+//! ## References
+//! 
+//! - Hu, Y., Harabor, D., Qin, L., & Yin, Q. (2021). Regarding goal bounding and jump point search. Journal of Artificial Intelligence Research, 70, 631-681.
+//! - Rabin, S., & Sturtevant, N. (2016, February). Combining bounding boxes and JPS to prune grid pathfinding. In Proceedings of the AAAI Conference on Artificial Intelligence (Vol. 30, No. 1).
+//! - Salvetti, M., Botea, A., Gerevini, A., Harabor, D., & Saetti, A. (2018, June). Two-oracle optimal path planning on grid maps. In Proceedings of the International Conference on Automated Planning and Scheduling (Vol. 28, pp. 227-231).
+
 use ahash::HashMap;
 use enumset::EnumSet;
 use mkpath_grid::Direction;

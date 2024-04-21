@@ -198,19 +198,23 @@ impl FirstMoveSearcher {
             found(node, node.get(first_move));
             edges.clear();
             expander.expand(node, &mut edges);
+
+            let node_g = node.get(g);
+            let node_first_move = node.get(first_move);
+
             for edge in &edges {
                 let successor = edge.successor();
-                let new_g = edge.cost() + node.get(g);
+                let new_g = edge.cost() + node_g;
                 // TODO: think about floating point round-off error
                 if new_g < successor.get(g) {
                     // Shorter path to node; update g and first move field.
                     successor.set(g, new_g);
-                    successor.set(first_move, node.get(first_move));
+                    successor.set(first_move, node_first_move);
                     successor.set_parent(Some(node));
                     open.relaxed(successor);
                 } else if new_g == successor.get(g) {
                     // In case of tie, multiple first moves may allow optimal paths.
-                    successor.set(first_move, successor.get(first_move) | node.get(first_move));
+                    successor.set(first_move, successor.get(first_move) | node_first_move);
                 }
             }
         }

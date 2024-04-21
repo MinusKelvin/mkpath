@@ -78,15 +78,19 @@ impl<'a> FirstMoveComputer<'a> {
             unsafe {
                 expander.expand_unchecked(node, &mut edges, node.get(successors));
             }
+
+            let node_g = node.get(g);
+            let node_first_move = node.get(first_move);
+
             for edge in &edges {
                 let successor = edge.successor;
                 let (x, y) = successor.get(state);
-                let new_g = edge.cost + node.get(g);
+                let new_g = edge.cost + node_g;
                 // TODO: think about floating point round-off error
                 if new_g < successor.get(g) {
                     // Shorter path to node; overwrite first move and successors.
                     successor.set(g, new_g);
-                    successor.set(first_move, node.get(first_move));
+                    successor.set(first_move, node_first_move);
                     successor.set(
                         successors,
                         canonical_successors(map.get_neighborhood(x, y), Some(edge.direction)),
@@ -97,7 +101,7 @@ impl<'a> FirstMoveComputer<'a> {
                     // In case of tie, multiple first moves may allow optimal paths.
                     // Additionally, there are more canonical successors to consider
                     // when the node is expanded.
-                    successor.set(first_move, successor.get(first_move) | node.get(first_move));
+                    successor.set(first_move, successor.get(first_move) | node_first_move);
                     successor.set(
                         successors,
                         successor.get(successors)
