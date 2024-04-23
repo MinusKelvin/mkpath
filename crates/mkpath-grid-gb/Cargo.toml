@@ -13,4 +13,4 @@ mkpath-core = { workspace = true }
 mkpath-cpd = { workspace = true }
 mkpath-grid = { workspace = true }
 mkpath-jps = { workspace = true }
-rayon = "1.9.0"
+num_cpus = "1.16.0"

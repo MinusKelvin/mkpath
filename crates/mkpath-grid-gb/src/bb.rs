@@ -5,11 +5,10 @@ use std::time::Duration;
 use enumset::EnumSet;
 use mkpath_grid::{BitGrid, Direction, Grid};
 use mkpath_jps::JumpDatabase;
-use rayon::prelude::*;
 
 use crate::first_move::FirstMoveComputer;
-use crate::independent_jump_points;
 use crate::tiebreak::compute_tiebreak_table;
+use crate::{independent_jump_points, parallel_for};
 
 pub struct PartialCellBb {
     jump_db: JumpDatabase,
@@ -42,9 +41,11 @@ impl PartialCellBb {
             jump_db.map().height(),
             |_, _| None,
         ));
-        jump_points.par_iter().for_each_init(
+
+        parallel_for(
+            jump_points.into_iter(),
             || FirstMoveComputer::new(map),
-            |fm_computer, (&source, &jps)| {
+            |fm_computer, (source, jps)| {
                 let tiebreak_table =
                     compute_tiebreak_table(map.get_neighborhood(source.0, source.1), jps);
 
@@ -67,8 +68,10 @@ impl PartialCellBb {
                 callback(*progress, num_jps, start.elapsed());
 
                 partial_bb.lock().unwrap()[source] = Some(result);
+                Ok(())
             },
-        );
+        )
+        .unwrap();
 
         PartialCellBb {
             jump_db,

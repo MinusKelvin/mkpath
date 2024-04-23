@@ -7,12 +7,11 @@ use enumset::EnumSet;
 use mkpath_cpd::{CpdRow, StateIdMapper};
 use mkpath_grid::{BitGrid, Direction, Grid};
 use mkpath_jps::JumpDatabase;
-use rayon::prelude::*;
 
 use crate::first_move::FirstMoveComputer;
-use crate::independent_jump_points;
 use crate::mapper::GridMapper;
 use crate::tiebreak::compute_tiebreak_table;
+use crate::{independent_jump_points, parallel_for};
 
 pub struct PartialCellCpd {
     mapper: GridMapper,
@@ -87,9 +86,10 @@ impl PartialCellCpd {
         let num_jps = jump_points.len();
         let progress = Mutex::new((0, iter_done));
 
-        jump_points.par_iter().try_for_each_init(
+        parallel_for(
+            jump_points.into_iter(),
             || FirstMoveComputer::new(map),
-            |fm_computer, (&source, &jps)| {
+            |fm_computer, (source, jps)| {
                 let mut first_moves = vec![EnumSet::all(); mapper.num_ids()];
                 fm_computer.compute(source, |pos, fm| first_moves[mapper.state_to_id(pos)] = fm);
 
