@@ -21,6 +21,7 @@ use std::sync::Mutex;
 
 use ahash::HashMap;
 use enumset::EnumSet;
+use mkpath_grid::BitGrid;
 use mkpath_grid::Direction;
 use mkpath_jps::{canonical_successors, JumpDatabase};
 
@@ -39,10 +40,8 @@ pub use self::jps_bb_expander::*;
 pub use self::topping_plus::*;
 pub use self::tops_expander::*;
 
-fn independent_jump_points(jump_db: &JumpDatabase) -> HashMap<(i32, i32), EnumSet<Direction>> {
+fn independent_jump_points(map: &BitGrid, jump_db: &JumpDatabase) -> HashMap<(i32, i32), EnumSet<Direction>> {
     use Direction::*;
-
-    let map = jump_db.map();
 
     let diagonals = NorthWest | SouthWest | NorthEast | SouthEast;
 

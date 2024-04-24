@@ -1,13 +1,12 @@
 use mkpath_grid::{BitGrid, Direction, Grid};
 
 pub struct JumpDatabase {
-    map: BitGrid,
     db: Grid<[u16; 8]>,
 }
 
 impl JumpDatabase {
     #[inline(never)]
-    pub fn new(map: BitGrid) -> Self {
+    pub fn new(map: &BitGrid) -> Self {
         use Direction::*;
 
         assert!(
@@ -145,11 +144,15 @@ impl JumpDatabase {
             }
         }
 
-        JumpDatabase { map, db }
+        JumpDatabase { db }
     }
 
-    pub fn map(&self) -> &BitGrid {
-        &self.map
+    pub fn width(&self) -> i32 {
+        self.db.width()
+    }
+
+    pub fn height(&self) -> i32 {
+        self.db.height()
     }
 
     pub fn get(&self, x: i32, y: i32, dir: Direction) -> (i32, bool) {

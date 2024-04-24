@@ -11,21 +11,14 @@ pub use self::jps::*;
 pub use self::jps_plus::*;
 pub use self::jump_db::*;
 
-pub struct JpsGrid {
-    map: BitGrid,
-    tmap: BitGrid,
-}
-
-impl From<BitGrid> for JpsGrid {
-    fn from(map: BitGrid) -> Self {
-        let mut tmap = BitGrid::new(map.height(), map.width());
-        for x in 0..tmap.width() {
-            for y in 0..tmap.height() {
-                tmap.set(x, y, map.get(y, x));
-            }
+pub fn transpose(map: &BitGrid) -> BitGrid {
+    let mut tmap = BitGrid::new(map.height(), map.width());
+    for x in 0..tmap.width() {
+        for y in 0..tmap.height() {
+            tmap.set(x, y, map.get(y, x));
         }
-        JpsGrid { map, tmap }
     }
+    tmap
 }
 
 pub fn reached_direction(from: (i32, i32), to: (i32, i32)) -> Option<Direction> {

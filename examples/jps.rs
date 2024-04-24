@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use mkpath::grid::octile_distance;
 use mkpath::jps::JpsExpander;
 use mkpath::{AStarSearcher, HashPool, NodeBuilder, PriorityQueueFactory};
+use mkpath_jps::transpose;
 use structopt::StructOpt;
 
 mod movingai;
@@ -26,7 +27,7 @@ fn main() {
     let mut open_list_factory = PriorityQueueFactory::new(&mut builder);
     let mut pool = HashPool::new(builder.build(), state);
 
-    let map = map.into();
+    let tmap = transpose(&map);
 
     let t2 = std::time::Instant::now();
 
@@ -34,7 +35,7 @@ fn main() {
         pool.reset();
 
         let open_list = open_list_factory.new_queue(astar.ordering());
-        let expander = JpsExpander::new(&map, &pool, problem.target);
+        let expander = JpsExpander::new(&map, &tmap, &pool, problem.target);
 
         let result = astar.search(
             expander,

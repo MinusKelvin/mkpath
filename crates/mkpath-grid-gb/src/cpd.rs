@@ -15,21 +15,20 @@ use crate::{independent_jump_points, parallel_for};
 
 pub struct PartialCellCpd {
     mapper: GridMapper,
-    jump_db: JumpDatabase,
     partial_cpd: Grid<Option<Box<CpdRow>>>,
 }
 
 impl PartialCellCpd {
     pub fn compute(
-        map: BitGrid,
+        map: &BitGrid,
+        jump_db: &JumpDatabase,
         mut progress_callback: impl FnMut(usize, usize, Duration) + Send,
     ) -> Self {
-        let jump_db = JumpDatabase::new(map);
-        let mapper = GridMapper::dfs_preorder(jump_db.map());
-        let jump_points = independent_jump_points(&jump_db);
-        let mut partial_cpd = Grid::new(jump_db.map().width(), jump_db.map().height(), |_, _| None);
+        let mapper = GridMapper::dfs_preorder(map);
+        let jump_points = independent_jump_points(map, jump_db);
+        let mut partial_cpd = Grid::new(map.width(), map.height(), |_, _| None);
         Self::compute_impl(
-            &jump_db,
+            map,
             &mapper,
             jump_points,
             |progress, total, time, source, result| {
@@ -42,23 +41,22 @@ impl PartialCellCpd {
 
         PartialCellCpd {
             mapper,
-            jump_db,
             partial_cpd,
         }
     }
 
     pub fn compute_to_file(
-        map: BitGrid,
+        map: &BitGrid,
+        jump_db: &JumpDatabase,
         to: &mut (impl Write + Send),
         mut progress_callback: impl FnMut(usize, usize, Duration) + Send,
     ) -> std::io::Result<()> {
-        let jump_db = JumpDatabase::new(map);
-        let mapper = GridMapper::dfs_preorder(jump_db.map());
-        let jump_points = independent_jump_points(&jump_db);
+        let mapper = GridMapper::dfs_preorder(map);
+        let jump_points = independent_jump_points(map, jump_db);
         mapper.save(to)?;
         to.write_all(&u32::to_le_bytes(jump_points.len() as u32))?;
         Self::compute_impl(
-            &jump_db,
+            map,
             &mapper,
             jump_points,
             |progress, total, time, (x, y), result| {
@@ -72,7 +70,7 @@ impl PartialCellCpd {
     }
 
     fn compute_impl<F>(
-        jump_db: &JumpDatabase,
+        map: &BitGrid,
         mapper: &GridMapper,
         jump_points: HashMap<(i32, i32), EnumSet<Direction>>,
         iter_done: F,
@@ -80,8 +78,6 @@ impl PartialCellCpd {
     where
         F: FnMut(usize, usize, Duration, (i32, i32), Box<CpdRow>) -> std::io::Result<()> + Send,
     {
-        let map = jump_db.map();
-
         let start = std::time::Instant::now();
         let num_jps = jump_points.len();
         let progress = Mutex::new((0, iter_done));
@@ -109,15 +105,14 @@ impl PartialCellCpd {
         )
     }
 
-    pub fn load(map: BitGrid, from: &mut impl Read) -> std::io::Result<Self> {
-        let jump_db = JumpDatabase::new(map);
+    pub fn load(map: &BitGrid, from: &mut impl Read) -> std::io::Result<Self> {
         let mapper = GridMapper::load(from)?;
 
         let mut bytes = [0; 4];
         from.read_exact(&mut bytes)?;
         let num_jps = u32::from_le_bytes(bytes) as usize;
 
-        let mut partial_cpd = Grid::new(jump_db.map().width(), jump_db.map().height(), |_, _| None);
+        let mut partial_cpd = Grid::new(map.width(), map.height(), |_, _| None);
         for _ in 0..num_jps {
             from.read_exact(&mut bytes)?;
             let x = i32::from_le_bytes(bytes);
@@ -126,15 +121,14 @@ impl PartialCellCpd {
 
             assert!(x >= 0);
             assert!(y >= 0);
-            assert!(x < jump_db.map().width());
-            assert!(y < jump_db.map().height());
+            assert!(x < map.width());
+            assert!(y < map.height());
 
             partial_cpd[(x, y)] = Some(CpdRow::load(from)?);
         }
 
         Ok(PartialCellCpd {
             mapper,
-            jump_db,
             partial_cpd,
         })
     }
@@ -165,13 +159,5 @@ impl PartialCellCpd {
         self.partial_cpd[pos]
             .as_ref()
             .and_then(|row| row.lookup(self.mapper.state_to_id(target)).try_into().ok())
-    }
-
-    pub fn map(&self) -> &BitGrid {
-        self.jump_db.map()
-    }
-
-    pub fn jump_db(&self) -> &JumpDatabase {
-        &self.jump_db
     }
 }

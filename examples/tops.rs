@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use mkpath::{AStarSearcher, HashPool, NodeBuilder, PriorityQueueFactory};
 use mkpath_grid::octile_distance;
 use mkpath_grid_gb::{PartialCellCpd, TopsExpander};
+use mkpath_jps::JumpDatabase;
 use structopt::StructOpt;
 
 mod movingai;
@@ -24,10 +25,11 @@ fn main() {
         cpd_file.as_mut_os_string().push(".top+");
 
         let map = movingai::read_bitgrid(&opt.path).unwrap();
+        let jump_db = JumpDatabase::new(&map);
 
         let mut file = BufWriter::new(File::create(cpd_file).unwrap());
 
-        PartialCellCpd::compute_to_file(map, &mut file, |progress, total, time| {
+        PartialCellCpd::compute_to_file(&map, &jump_db, &mut file, |progress, total, time| {
             let done = progress == total;
             let progress = progress as f64 / total as f64;
             let ttg = if done {
@@ -54,11 +56,12 @@ fn main() {
 
         let scen = movingai::read_scenario(&opt.path).unwrap();
         let map = movingai::read_bitgrid(&scen.map).unwrap();
+        let jump_db = JumpDatabase::new(&map);
 
         let mut cpd_file = scen.map.clone();
         cpd_file.as_mut_os_string().push(".top+");
         let oracle =
-            PartialCellCpd::load(map, &mut BufReader::new(File::open(cpd_file).unwrap())).unwrap();
+            PartialCellCpd::load(&map, &mut BufReader::new(File::open(cpd_file).unwrap())).unwrap();
 
         let mut builder = NodeBuilder::new();
         let state = builder.add_field((-1, -1));
@@ -72,7 +75,7 @@ fn main() {
             pool.reset();
 
             let open_list = open_list_factory.new_queue(astar.ordering());
-            let expander = TopsExpander::new(&oracle, &pool, problem.target);
+            let expander = TopsExpander::new(&map, &jump_db, &oracle, &pool, problem.target);
 
             let result = astar.search(
                 expander,

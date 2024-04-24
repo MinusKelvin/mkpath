@@ -1,6 +1,6 @@
 use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
-use mkpath_grid::{GridStateMapper, SAFE_SQRT_2};
+use mkpath_grid::{BitGrid, GridStateMapper, SAFE_SQRT_2};
 
 use crate::{canonical_successors, Direction, JumpDatabase};
 
@@ -10,25 +10,47 @@ use crate::{canonical_successors, Direction, JumpDatabase};
 /// International Conference on Automated Planning and Scheduling (Vol. 24, pp. 128-135).
 pub struct JpsPlusExpander<'a, P> {
     node_pool: &'a P,
+    map: &'a BitGrid,
     jump_db: &'a JumpDatabase,
     target: (i32, i32),
 }
 
 impl<'a, P: GridStateMapper> JpsPlusExpander<'a, P> {
-    pub fn new(jump_db: &'a JumpDatabase, node_pool: &'a P, target: (i32, i32)) -> Self {
+    pub fn new(
+        map: &'a BitGrid,
+        jump_db: &'a JumpDatabase,
+        node_pool: &'a P,
+        target: (i32, i32),
+    ) -> Self {
         // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
         // node pool.
         assert!(
-            node_pool.width() >= jump_db.map().width(),
+            node_pool.width() >= map.width(),
             "node pool must be wide enough for the map"
         );
         assert!(
-            node_pool.height() >= jump_db.map().height(),
+            node_pool.height() >= map.height(),
             "node pool must be tall enough for the map"
+        );
+
+        // Establish invariant that coordinates in-bounds of the map are in-bounds of the jump
+        // database, and vice-versa.
+        // We don't check that the content of the jump database is actually correct for the map
+        // since that's a) slow b) merely a logic error; not required for safety.
+        assert_eq!(
+            map.width(),
+            jump_db.width(),
+            "jump database has incorrect width"
+        );
+        assert_eq!(
+            map.height(),
+            jump_db.height(),
+            "jump database has incorrect height"
         );
 
         JpsPlusExpander {
             node_pool,
+            map,
             jump_db,
             target,
         }
@@ -108,7 +130,7 @@ impl<'a, P: GridStateMapper> Expander<'a> for JpsPlusExpander<'a, P> {
             crate::reached_direction((px, py), (x, y))
         });
 
-        let successors = canonical_successors(self.jump_db.map().get_neighborhood(x, y), dir);
+        let successors = canonical_successors(self.map.get_neighborhood(x, y), dir);
 
         unsafe {
             // All jumps have the traversability of the relevant tile checked via successor set.

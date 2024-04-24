@@ -1,23 +1,42 @@
 use mkpath_core::traits::Expander;
 use mkpath_core::{HashPool, NodeBuilder, NodeMemberPointer};
-use mkpath_grid::{octile_distance, Direction};
-use mkpath_jps::{canonical_successors, reached_direction};
+use mkpath_grid::{octile_distance, BitGrid, Direction};
+use mkpath_jps::{canonical_successors, reached_direction, JumpDatabase};
 
 use crate::{PartialCellCpd, TopsExpander};
 
 pub struct ToppingPlus<'a> {
+    map: &'a BitGrid,
+    jump_db: &'a JumpDatabase,
     cpd: &'a PartialCellCpd,
     node_pool: HashPool<(i32, i32)>,
     cost: NodeMemberPointer<f64>,
 }
 
 impl<'a> ToppingPlus<'a> {
-    pub fn new(cpd: &'a PartialCellCpd) -> Self {
+    pub fn new(map: &'a BitGrid, jump_db: &'a JumpDatabase, cpd: &'a PartialCellCpd) -> Self {
         let mut builder = NodeBuilder::new();
         let state = builder.add_field((-1, -1));
         let cost = builder.add_field(f64::INFINITY);
 
+        // Establish invariant that coordinates in-bounds of the map are in-bounds of the jump
+        // database, and vice-versa.
+        // We don't check that the content of the jump database is actually correct for the map
+        // since that's a) slow b) merely a logic error; not required for safety.
+        assert_eq!(
+            map.width(),
+            jump_db.width(),
+            "jump database has incorrect width"
+        );
+        assert_eq!(
+            map.height(),
+            jump_db.height(),
+            "jump database has incorrect height"
+        );
+
         ToppingPlus {
+            map,
+            jump_db,
             cpd,
             node_pool: HashPool::new(builder.build(), state),
             cost,
@@ -35,7 +54,8 @@ impl<'a> ToppingPlus<'a> {
         target_node.set(cost, 0.0);
 
         let mut starts = vec![];
-        TopsExpander::new(self.cpd, &self.node_pool, target).expand(start_node, &mut starts);
+        TopsExpander::new(self.map, self.jump_db, self.cpd, &self.node_pool, target)
+            .expand(start_node, &mut starts);
 
         let mut node_stack = vec![];
 
@@ -54,7 +74,7 @@ impl<'a> ToppingPlus<'a> {
                 let state = current_node.get(state);
                 let going = reached_direction(prev_state, state);
                 let canonical =
-                    canonical_successors(self.cpd.map().get_neighborhood(state.0, state.1), going);
+                    canonical_successors(self.map.get_neighborhood(state.0, state.1), going);
 
                 let dir = self
                     .cpd
@@ -67,45 +87,40 @@ impl<'a> ToppingPlus<'a> {
 
                 let next_state = match dir {
                     Direction::North => unsafe {
-                        // SAFETY: We know that JpsPlusExpander produces successors whose
+                        // SAFETY: We know that TopsExpander produces successors whose
                         //         coordinates are in-bounds, and we know that jumping with the
                         //         jump distance database gives us coordinates that are in-bounds,
                         //         so state will always be in-bounds. Similar for below calls.
                         let dist = self
-                            .cpd
-                            .jump_db()
+                            .jump_db
                             .ortho_jump_unchecked(state.0, state.1, Direction::North, target)
                             .unwrap();
                         (state.0, state.1 - dist)
                     },
                     Direction::West => unsafe {
                         let dist = self
-                            .cpd
-                            .jump_db()
+                            .jump_db
                             .ortho_jump_unchecked(state.0, state.1, Direction::West, target)
                             .unwrap();
                         (state.0 - dist, state.1)
                     },
                     Direction::South => unsafe {
                         let dist = self
-                            .cpd
-                            .jump_db()
+                            .jump_db
                             .ortho_jump_unchecked(state.0, state.1, Direction::South, target)
                             .unwrap();
                         (state.0, state.1 + dist)
                     },
                     Direction::East => unsafe {
                         let dist = self
-                            .cpd
-                            .jump_db()
+                            .jump_db
                             .ortho_jump_unchecked(state.0, state.1, Direction::East, target)
                             .unwrap();
                         (state.0 + dist, state.1)
                     },
                     Direction::NorthWest => unsafe {
                         let (dist, turn) = self
-                            .cpd
-                            .jump_db()
+                            .jump_db
                             .diagonal_jump_unchecked(state.0, state.1, Direction::NorthWest, target)
                             .unwrap();
                         let (x, y) = (state.0 - dist, state.1 - dist);
@@ -118,8 +133,7 @@ impl<'a> ToppingPlus<'a> {
                     },
                     Direction::SouthWest => unsafe {
                         let (dist, turn) = self
-                            .cpd
-                            .jump_db()
+                            .jump_db
                             .diagonal_jump_unchecked(state.0, state.1, Direction::SouthWest, target)
                             .unwrap();
                         let (x, y) = (state.0 - dist, state.1 + dist);
@@ -132,8 +146,7 @@ impl<'a> ToppingPlus<'a> {
                     },
                     Direction::SouthEast => unsafe {
                         let (dist, turn) = self
-                            .cpd
-                            .jump_db()
+                            .jump_db
                             .diagonal_jump_unchecked(state.0, state.1, Direction::SouthEast, target)
                             .unwrap();
                         let (x, y) = (state.0 + dist, state.1 + dist);
@@ -146,8 +159,7 @@ impl<'a> ToppingPlus<'a> {
                     },
                     Direction::NorthEast => unsafe {
                         let (dist, turn) = self
-                            .cpd
-                            .jump_db()
+                            .jump_db
                             .diagonal_jump_unchecked(state.0, state.1, Direction::NorthEast, target)
                             .unwrap();
                         let (x, y) = (state.0 + dist, state.1 - dist);

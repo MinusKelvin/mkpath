@@ -28,13 +28,13 @@ fn main() {
 
     let t2 = std::time::Instant::now();
 
-    let jump_db = JumpDatabase::new(map);
+    let jump_db = JumpDatabase::new(&map);
 
     for problem in &scen.instances {
         pool.reset();
 
         let open_list = open_list_factory.new_queue(astar.ordering());
-        let expander = JpsPlusExpander::new(&jump_db, &pool, problem.target);
+        let expander = JpsPlusExpander::new(&map, &jump_db, &pool, problem.target);
 
         let result = astar.search(
             expander,

@@ -11,7 +11,6 @@ use crate::tiebreak::compute_tiebreak_table;
 use crate::{independent_jump_points, parallel_for};
 
 pub struct PartialCellBb {
-    jump_db: JumpDatabase,
     partial_bb: Grid<Option<[Rectangle; 8]>>,
 }
 
@@ -24,23 +23,17 @@ struct Rectangle {
 
 impl PartialCellBb {
     pub fn compute(
-        map: BitGrid,
+        map: &BitGrid,
+        jump_db: &JumpDatabase,
         progress_callback: impl FnMut(usize, usize, Duration) + Send,
     ) -> Self {
-        // note: this checks that valid coordinates are inside i16 range
-        let jump_db = JumpDatabase::new(map);
-        let map = jump_db.map();
-        let jump_points = independent_jump_points(&jump_db);
+        let jump_points = independent_jump_points(map, jump_db);
 
         let start = std::time::Instant::now();
         let num_jps = jump_points.len();
         let progress = Mutex::new((0, progress_callback));
 
-        let partial_bb = Mutex::new(Grid::new(
-            jump_db.map().width(),
-            jump_db.map().height(),
-            |_, _| None,
-        ));
+        let partial_bb = Mutex::new(Grid::new(map.width(), map.height(), |_, _| None));
 
         parallel_for(
             jump_points.into_iter(),
@@ -74,14 +67,11 @@ impl PartialCellBb {
         .unwrap();
 
         PartialCellBb {
-            jump_db,
             partial_bb: partial_bb.into_inner().unwrap(),
         }
     }
 
-    pub fn load(map: BitGrid, from: &mut impl Read) -> std::io::Result<Self> {
-        let jump_db = JumpDatabase::new(map);
-
+    pub fn load(map: &BitGrid, from: &mut impl Read) -> std::io::Result<Self> {
         let mut bytes = [0; 4];
         from.read_exact(&mut bytes)?;
         let num_jps = u32::from_le_bytes(bytes) as usize;
@@ -89,15 +79,15 @@ impl PartialCellBb {
         let mut bytes = [0; 2];
         let mut read_i16 = || from.read(&mut bytes).map(|_| i16::from_le_bytes(bytes));
 
-        let mut partial_bb = Grid::new(jump_db.map().width(), jump_db.map().height(), |_, _| None);
+        let mut partial_bb = Grid::new(map.width(), map.height(), |_, _| None);
         for _ in 0..num_jps {
             let x = read_i16()? as i32;
             let y = read_i16()? as i32;
 
             assert!(x >= 0);
             assert!(y >= 0);
-            assert!(x < jump_db.map().width());
-            assert!(y < jump_db.map().height());
+            assert!(x < map.width());
+            assert!(y < map.height());
 
             let mut result = [(); 8].map(|_| Rectangle::empty());
             for dir in 0..8 {
@@ -111,10 +101,7 @@ impl PartialCellBb {
             partial_bb[(x, y)] = Some(result);
         }
 
-        Ok(PartialCellBb {
-            jump_db,
-            partial_bb,
-        })
+        Ok(PartialCellBb { partial_bb })
     }
 
     pub fn save(&self, to: &mut impl Write) -> std::io::Result<()> {
@@ -158,14 +145,6 @@ impl PartialCellBb {
             }
         }
         canonical
-    }
-
-    pub fn map(&self) -> &BitGrid {
-        self.jump_db.map()
-    }
-
-    pub fn jump_db(&self) -> &JumpDatabase {
-        &self.jump_db
     }
 }
 

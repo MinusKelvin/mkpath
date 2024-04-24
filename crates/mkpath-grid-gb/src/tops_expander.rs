@@ -1,30 +1,55 @@
 use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
-use mkpath_grid::{Direction, GridStateMapper, SAFE_SQRT_2};
-use mkpath_jps::canonical_successors;
+use mkpath_grid::{BitGrid, Direction, GridStateMapper, SAFE_SQRT_2};
+use mkpath_jps::{canonical_successors, JumpDatabase};
 
 use crate::PartialCellCpd;
 
 pub struct TopsExpander<'a, P> {
     node_pool: &'a P,
+    map: &'a BitGrid,
+    jump_db: &'a JumpDatabase,
     oracle: &'a PartialCellCpd,
     target: (i32, i32),
 }
 
 impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
-    pub fn new(oracle: &'a PartialCellCpd, node_pool: &'a P, target: (i32, i32)) -> Self {
+    pub fn new(
+        map: &'a BitGrid,
+        jump_db: &'a JumpDatabase,
+        oracle: &'a PartialCellCpd,
+        node_pool: &'a P,
+        target: (i32, i32),
+    ) -> Self {
         // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
         // node pool.
         assert!(
-            node_pool.width() >= oracle.map().width(),
+            node_pool.width() >= map.width(),
             "node pool must be wide enough for the map"
         );
         assert!(
-            node_pool.height() >= oracle.map().height(),
+            node_pool.height() >= map.height(),
             "node pool must be tall enough for the map"
         );
 
+        // Establish invariant that coordinates in-bounds of the map are in-bounds of the jump
+        // database, and vice-versa.
+        // We don't check that the content of the jump database is actually correct for the map
+        // since that's a) slow b) merely a logic error; not required for safety.
+        assert_eq!(
+            map.width(),
+            jump_db.width(),
+            "jump database has incorrect width"
+        );
+        assert_eq!(
+            map.height(),
+            jump_db.height(),
+            "jump database has incorrect height"
+        );
+
         TopsExpander {
+            map,
+            jump_db,
             node_pool,
             oracle,
             target,
@@ -48,11 +73,7 @@ impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
             _ => unreachable!(),
         };
 
-        if let Some(dist) = self
-            .oracle
-            .jump_db()
-            .ortho_jump_unchecked(x, y, dir, self.target)
-        {
+        if let Some(dist) = self.jump_db.ortho_jump_unchecked(x, y, dir, self.target) {
             edges.push(WeightedEdge {
                 successor: self
                     .node_pool
@@ -79,10 +100,7 @@ impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
         };
 
         let mut cost = 0.0;
-        while let Some((dist, turn)) =
-            self.oracle
-                .jump_db()
-                .diagonal_jump_unchecked(x, y, dir, self.target)
+        while let Some((dist, turn)) = self.jump_db.diagonal_jump_unchecked(x, y, dir, self.target)
         {
             x += dx * dist;
             y += dy * dist;
@@ -136,7 +154,7 @@ impl<'a, P: GridStateMapper> Expander<'a> for TopsExpander<'a, P> {
             mkpath_jps::reached_direction((px, py), (x, y))
         });
 
-        let mut successors = canonical_successors(self.oracle.map().get_neighborhood(x, y), dir);
+        let mut successors = canonical_successors(self.map.get_neighborhood(x, y), dir);
 
         let first_move = self.oracle.query((x, y), self.target);
 

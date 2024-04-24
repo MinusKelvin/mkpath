@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use mkpath::{AStarSearcher, HashPool, NodeBuilder, PriorityQueueFactory};
 use mkpath_grid::octile_distance;
 use mkpath_grid_gb::{JpsBbExpander, PartialCellBb};
+use mkpath_jps::JumpDatabase;
 use structopt::StructOpt;
 
 mod movingai;
@@ -24,8 +25,9 @@ fn main() {
         cpd_file.as_mut_os_string().push(".bb+");
 
         let map = movingai::read_bitgrid(&opt.path).unwrap();
+        let jump_db = JumpDatabase::new(&map);
 
-        let oracle = PartialCellBb::compute(map, |progress, total, time| {
+        let oracle = PartialCellBb::compute(&map, &jump_db, |progress, total, time| {
             let done = progress == total;
             let progress = progress as f64 / total as f64;
             let ttg = if done {
@@ -55,11 +57,12 @@ fn main() {
 
         let scen = movingai::read_scenario(&opt.path).unwrap();
         let map = movingai::read_bitgrid(&scen.map).unwrap();
+        let jump_db = JumpDatabase::new(&map);
 
         let mut cpd_file = scen.map.clone();
         cpd_file.as_mut_os_string().push(".bb+");
         let oracle =
-            PartialCellBb::load(map, &mut BufReader::new(File::open(cpd_file).unwrap())).unwrap();
+            PartialCellBb::load(&map, &mut BufReader::new(File::open(cpd_file).unwrap())).unwrap();
 
         let mut builder = NodeBuilder::new();
         let state = builder.add_field((-1, -1));
@@ -73,7 +76,7 @@ fn main() {
             pool.reset();
 
             let open_list = open_list_factory.new_queue(astar.ordering());
-            let expander = JpsBbExpander::new(&oracle, &pool, problem.target);
+            let expander = JpsBbExpander::new(&map, &jump_db, &oracle, &pool, problem.target);
 
             let result = astar.search(
                 expander,

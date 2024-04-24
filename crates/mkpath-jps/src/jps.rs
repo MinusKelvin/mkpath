@@ -2,7 +2,7 @@ use mkpath_core::traits::{Expander, WeightedEdge};
 use mkpath_core::NodeRef;
 use mkpath_grid::{BitGrid, Direction, GridStateMapper, SAFE_SQRT_2};
 
-use crate::{canonical_successors, skipped_past, JpsGrid};
+use crate::{canonical_successors, skipped_past};
 
 /// Jump Point Search expander.
 ///
@@ -10,26 +10,43 @@ use crate::{canonical_successors, skipped_past, JpsGrid};
 /// International Conference on Automated Planning and Scheduling (Vol. 24, pp. 128-135).
 pub struct JpsExpander<'a, P> {
     node_pool: &'a P,
-    map: &'a JpsGrid,
+    map: &'a BitGrid,
+    tmap: &'a BitGrid,
     target: (i32, i32),
 }
 
 impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
-    pub fn new(map: &'a JpsGrid, node_pool: &'a P, target: (i32, i32)) -> Self {
+    pub fn new(map: &'a BitGrid, tmap: &'a BitGrid, node_pool: &'a P, target: (i32, i32)) -> Self {
         // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
         // node pool.
         assert!(
-            node_pool.width() >= map.map.width(),
+            node_pool.width() >= map.width(),
             "node pool must be wide enough for the map"
         );
         assert!(
-            node_pool.height() >= map.map.height(),
+            node_pool.height() >= map.height(),
             "node pool must be tall enough for the map"
+        );
+
+        // Establish invariant that coordinates in-bounds of the map are in-bounds of the transposed
+        // map when transposed, and vice-versa.
+        // We don't check that the content of the transposed map is actually transposed from the
+        // map since that's a) slow b) merely a logic error; not required for safety.
+        assert_eq!(
+            map.width(),
+            tmap.height(),
+            "transposed map has incorrect height"
+        );
+        assert_eq!(
+            map.height(),
+            tmap.width(),
+            "transposed map has incorrect width"
         );
 
         JpsExpander {
             node_pool,
             map,
+            tmap,
             target,
         }
     }
@@ -53,8 +70,8 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
     ) -> i32 {
         let (mut new_x, mut successor) = unsafe {
             match DX {
-                -1 => jump_left::<DY>(&self.map.map, x, y, all_1s),
-                1 => jump_right::<DY>(&self.map.map, x, y, all_1s),
+                -1 => jump_left::<DY>(&self.map, x, y, all_1s),
+                1 => jump_right::<DY>(&self.map, x, y, all_1s),
                 _ => unreachable!(),
             }
         };
@@ -93,8 +110,8 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
             // The preconditions are upheld by the caller. Note that JpsGrid has the invariant
             // that tmap is the transpose of map.
             match DY {
-                -1 => jump_left::<DX>(&self.map.tmap, y, x, all_1s),
-                1 => jump_right::<DX>(&self.map.tmap, y, x, all_1s),
+                -1 => jump_left::<DX>(&self.tmap, y, x, all_1s),
+                1 => jump_right::<DX>(&self.tmap, y, x, all_1s),
                 _ => unreachable!(),
             }
         };
@@ -149,9 +166,9 @@ impl<'a, P: GridStateMapper> JpsExpander<'a, P> {
                 }
 
                 // x, y are in-bounds, so these are all padded in-bounds.
-                let x_t = self.map.map.get_unchecked(x + DX, y);
-                let y_t = self.map.map.get_unchecked(x, y + DY);
-                let xy_t = self.map.map.get_unchecked(x + DX, y + DY);
+                let x_t = self.map.get_unchecked(x + DX, y);
+                let y_t = self.map.get_unchecked(x, y + DY);
+                let xy_t = self.map.get_unchecked(x + DX, y + DY);
                 if x_t {
                     // x + DX, y is traversable, so this upholds the preconditions.
                     x_all_1s = self.jump_x::<DX, DY>(edges, x, y, cost, x_all_1s);
@@ -288,7 +305,7 @@ impl<'a, P: GridStateMapper> Expander<'a> for JpsExpander<'a, P> {
             crate::reached_direction((px, py), (x, y))
         });
 
-        let successors = canonical_successors(self.map.map.get_neighborhood(x, y), dir);
+        let successors = canonical_successors(self.map.get_neighborhood(x, y), dir);
 
         unsafe {
             // All jumps have the traversability of the relevant tile checked via successor set.
