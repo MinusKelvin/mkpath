@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 use std::path::PathBuf;
 
+use mkpath::traits::NodePool;
 use mkpath::{AStarSearcher, HashPool, NodeBuilder, PriorityQueueFactory};
 use mkpath_grid::octile_distance;
 use mkpath_grid_gb::{PartialCellCpd, TopsExpander};
@@ -75,7 +76,7 @@ fn main() {
             pool.reset();
 
             let open_list = open_list_factory.new_queue(astar.ordering());
-            let expander = TopsExpander::new(&map, &jump_db, &oracle, &pool, problem.target);
+            let expander = TopsExpander::new(&map, &jump_db, &oracle, &pool, state, problem.target);
 
             let result = astar.search(
                 expander,

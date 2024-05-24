@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mkpath::cpd::{CpdRow, FirstMoveSearcher, StateIdMapper};
 use mkpath::grid::{EightConnectedExpander, Grid, GridPool};
+use mkpath::traits::NodePool;
 use mkpath::NodeBuilder;
 use mkpath_cpd::BucketQueueFactory;
 use mkpath_grid::{Direction, SAFE_SQRT_2};
@@ -113,7 +114,7 @@ fn build_cpd(map: &Path, output: &Path) -> std::io::Result<()> {
             pool.reset();
             mkpath::cpd::dfs_traversal(
                 pool.generate((x, y)),
-                EightConnectedExpander::new(&map, &pool),
+                EightConnectedExpander::new(&map, &pool, state),
                 |node| {
                     if grid[node.get(state)] == usize::MAX {
                         grid[node.get(state)] = array.len();
@@ -156,7 +157,7 @@ fn build_cpd(map: &Path, output: &Path) -> std::io::Result<()> {
                 let result = CpdRow::compute(
                     &mapper,
                     searcher,
-                    EightConnectedExpander::new(&map, pool),
+                    EightConnectedExpander::new(&map, pool, *state),
                     pqueue.new_queue(searcher.g(), 0.9),
                     pool.generate(source),
                     *state,

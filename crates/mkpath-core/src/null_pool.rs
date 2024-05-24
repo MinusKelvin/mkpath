@@ -1,4 +1,5 @@
 use crate::node::{NodeAllocator, NodeMemberPointer, NodeRef};
+use crate::traits::NodePool;
 
 pub struct NullPool<S: Copy> {
     state_field: NodeMemberPointer<S>,
@@ -15,21 +16,21 @@ impl<S: Copy + 'static> NullPool<S> {
         }
     }
 
-    pub fn state_member(&self) -> NodeMemberPointer<S> {
-        self.state_field
+    pub fn get(&self, _state: &S) -> Option<NodeRef> {
+        None
     }
+}
 
-    pub fn reset(&mut self) {
+impl<S: Copy + 'static> NodePool for NullPool<S> {
+    type State = S;
+
+    fn reset(&mut self) {
         self.allocator.reset();
     }
 
-    pub fn generate(&self, state: S) -> NodeRef {
+    fn generate(&self, state: S) -> NodeRef {
         let node = self.allocator.new_node();
         node.set(self.state_field, state);
         node
-    }
-
-    pub fn get(&self, _state: &S) -> Option<NodeRef> {
-        None
     }
 }

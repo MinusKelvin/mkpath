@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use mkpath::grid::octile_distance;
 use mkpath::jps::JpsExpander;
+use mkpath::traits::NodePool;
 use mkpath::{AStarSearcher, HashPool, NodeBuilder, PriorityQueueFactory};
 use mkpath_jps::transpose;
 use structopt::StructOpt;
@@ -35,7 +36,7 @@ fn main() {
         pool.reset();
 
         let open_list = open_list_factory.new_queue(astar.ordering());
-        let expander = JpsExpander::new(&map, &tmap, &pool, problem.target);
+        let expander = JpsExpander::new(&map, &tmap, &pool, state, problem.target);
 
         let result = astar.search(
             expander,

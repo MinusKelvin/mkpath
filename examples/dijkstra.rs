@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use mkpath::grid::{EightConnectedExpander, GridPool};
-use mkpath::traits::{Expander, OpenList};
+use mkpath::traits::{Expander, NodePool, OpenList};
 use mkpath::NodeBuilder;
 use mkpath_cpd::BucketQueueFactory;
 use mkpath_grid::GridEdge;
@@ -35,7 +35,7 @@ fn main() {
         pool.reset();
 
         let mut open_list = open_list_factory.new_queue(g, 0.9);
-        let mut expander = EightConnectedExpander::new(&map, &pool);
+        let mut expander = EightConnectedExpander::new(&map, &pool, state);
         let mut edges = vec![];
 
         // start node

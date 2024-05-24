@@ -1,6 +1,6 @@
 use mkpath_core::traits::{Expander, WeightedEdge};
-use mkpath_core::NodeRef;
-use mkpath_grid::{BitGrid, Direction, GridStateMapper, SAFE_SQRT_2};
+use mkpath_core::{NodeMemberPointer, NodeRef};
+use mkpath_grid::{BitGrid, Direction, GridNodePool, SAFE_SQRT_2};
 use mkpath_jps::{canonical_successors, JumpDatabase};
 
 use crate::PartialCellCpd;
@@ -10,15 +10,17 @@ pub struct TopsExpander<'a, P> {
     map: &'a BitGrid,
     jump_db: &'a JumpDatabase,
     oracle: &'a PartialCellCpd,
+    state: NodeMemberPointer<(i32, i32)>,
     target: (i32, i32),
 }
 
-impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
+impl<'a, P: GridNodePool> TopsExpander<'a, P> {
     pub fn new(
         map: &'a BitGrid,
         jump_db: &'a JumpDatabase,
         oracle: &'a PartialCellCpd,
         node_pool: &'a P,
+        state: NodeMemberPointer<(i32, i32)>,
         target: (i32, i32),
     ) -> Self {
         // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
@@ -52,6 +54,7 @@ impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
             jump_db,
             node_pool,
             oracle,
+            state,
             target,
         }
     }
@@ -143,14 +146,14 @@ impl<'a, P: GridStateMapper> TopsExpander<'a, P> {
     }
 }
 
-impl<'a, P: GridStateMapper> Expander<'a> for TopsExpander<'a, P> {
+impl<'a, P: GridNodePool> Expander<'a> for TopsExpander<'a, P> {
     type Edge = WeightedEdge<'a>;
 
     fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
-        let (x, y) = node.get(self.node_pool.state_member());
+        let (x, y) = node.get(self.state);
 
         let dir = node.get_parent().and_then(|parent| {
-            let (px, py) = parent.get(self.node_pool.state_member());
+            let (px, py) = parent.get(self.state);
             mkpath_jps::reached_direction((px, py), (x, y))
         });
 

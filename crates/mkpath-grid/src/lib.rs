@@ -7,8 +7,8 @@ mod grid;
 mod grid_pool;
 
 use enumset::EnumSetType;
-use mkpath_core::traits::{Cost, EdgeId, Successor};
-use mkpath_core::{HashPool, NodeMemberPointer, NodeRef, NullPool};
+use mkpath_core::traits::{Cost, EdgeId, NodePool, Successor};
+use mkpath_core::{HashPool, NodeRef, NullPool};
 
 pub use self::bitgrid::*;
 pub use self::eight_connected::*;
@@ -106,35 +106,34 @@ impl EdgeId for GridEdge<'_> {
     }
 }
 
-/// Trait for specialized grid-to-node mappers.
+/// Trait for `NodePool`s which work on grid maps.
 ///
 /// The purpose of this trait is to allow expansion policies to skip potential bounds checks when
 /// it is known that the node being generated is in-bounds of the grid being searched.
-pub trait GridStateMapper {
+pub trait GridNodePool: NodePool {
     fn width(&self) -> i32;
     fn height(&self) -> i32;
-    fn state_member(&self) -> NodeMemberPointer<(i32, i32)>;
 
     /// Generates a node without bounds checking.
     ///
     /// # Safety
     /// The state must be in bounds. Specifically:
-    /// - `state.0` in `0..w`, where `w` is the largest prior return value of `self.width()`
-    /// - `state.1` is in `0..h`, where `h` is the largest prior return value of `self.height()`
+    /// - `state.0` in `0..w` where `w = self.width()`
+    /// - `state.1` is in `0..h` where `h = self.height()`
+    ///
+    /// If, for whatever reason, the values of `self.width()` and `self.height()` change, then for
+    /// the purposes of the above contract, `w` and `h` and the largest values which have ever been
+    /// returned by those methods.
     unsafe fn generate_unchecked(&self, state: (i32, i32)) -> NodeRef;
 }
 
-impl GridStateMapper for NullPool<(i32, i32)> {
+impl GridNodePool for NullPool<(i32, i32)> {
     fn width(&self) -> i32 {
         i32::MAX
     }
 
     fn height(&self) -> i32 {
         i32::MAX
-    }
-
-    fn state_member(&self) -> NodeMemberPointer<(i32, i32)> {
-        self.state_member()
     }
 
     unsafe fn generate_unchecked(&self, state: (i32, i32)) -> NodeRef {
@@ -142,17 +141,13 @@ impl GridStateMapper for NullPool<(i32, i32)> {
     }
 }
 
-impl GridStateMapper for HashPool<(i32, i32)> {
+impl GridNodePool for HashPool<(i32, i32)> {
     fn width(&self) -> i32 {
         i32::MAX
     }
 
     fn height(&self) -> i32 {
         i32::MAX
-    }
-
-    fn state_member(&self) -> NodeMemberPointer<(i32, i32)> {
-        self.state_member()
     }
 
     unsafe fn generate_unchecked(&self, state: (i32, i32)) -> NodeRef {

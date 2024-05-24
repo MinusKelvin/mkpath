@@ -1,10 +1,9 @@
 use std::io::{Read, Write};
 
 use mkpath_core::NodeBuilder;
+use mkpath_core::traits::NodePool;
 use mkpath_cpd::StateIdMapper;
 use mkpath_grid::{BitGrid, EightConnectedExpander, Grid, GridPool};
-
-
 
 pub struct GridMapper {
     grid: Grid<usize>,
@@ -29,7 +28,7 @@ impl GridMapper {
                 pool.reset();
                 mkpath_cpd::dfs_traversal(
                     pool.generate((x, y)),
-                    EightConnectedExpander::new(&map, &pool),
+                    EightConnectedExpander::new(&map, &pool, state),
                     |node| {
                         if grid[node.get(state)] == usize::MAX {
                             grid[node.get(state)] = array.len();

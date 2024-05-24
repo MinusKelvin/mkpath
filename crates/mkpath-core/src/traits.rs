@@ -12,6 +12,14 @@ pub trait OpenList<'a> {
     fn relaxed(&mut self, node: NodeRef<'a>);
 }
 
+pub trait NodePool {
+    type State;
+
+    fn reset(&mut self);
+
+    fn generate(&self, state: Self::State) -> NodeRef;
+}
+
 pub trait Successor<'a> {
     fn successor(&self) -> NodeRef<'a>;
 }

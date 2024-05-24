@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use mkpath::grid::{octile_distance, EightConnectedExpander, GridPool};
 use mkpath::{AStarSearcher, NodeBuilder, PriorityQueueFactory};
+use mkpath::traits::NodePool;
 use structopt::StructOpt;
 
 mod movingai;
@@ -31,7 +32,7 @@ fn main() {
         pool.reset();
 
         let open_list = open_list_factory.new_queue(astar.ordering());
-        let expander = EightConnectedExpander::new(&map, &pool);
+        let expander = EightConnectedExpander::new(&map, &pool, state);
 
         let result = astar.search(
             expander,

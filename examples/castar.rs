@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use mkpath::grid::{octile_distance, GridPool};
 use mkpath::jps::CanonicalGridExpander;
+use mkpath::traits::NodePool;
 use mkpath::{AStarSearcher, NodeBuilder, PriorityQueueFactory};
 use structopt::StructOpt;
 
@@ -32,7 +33,7 @@ fn main() {
         pool.reset();
 
         let open_list = open_list_factory.new_queue(astar.ordering());
-        let expander = CanonicalGridExpander::new(&map, &pool);
+        let expander = CanonicalGridExpander::new(&map, &pool, state);
 
         let result = astar.search(
             expander,

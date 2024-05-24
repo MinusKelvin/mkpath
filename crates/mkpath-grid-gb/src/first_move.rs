@@ -1,5 +1,5 @@
 use enumset::EnumSet;
-use mkpath_core::traits::{Expander, OpenList};
+use mkpath_core::traits::{Expander, NodePool, OpenList};
 use mkpath_core::{NodeBuilder, NodeMemberPointer};
 use mkpath_cpd::BucketQueueFactory;
 use mkpath_grid::{BitGrid, Direction, GridPool};
@@ -9,6 +9,7 @@ pub struct FirstMoveComputer<'a> {
     map: &'a BitGrid,
     pool: GridPool,
     pqueue: BucketQueueFactory,
+    state: NodeMemberPointer<(i32, i32)>,
     g: NodeMemberPointer<f64>,
     successors: NodeMemberPointer<EnumSet<Direction>>,
     first_move: NodeMemberPointer<EnumSet<Direction>>,
@@ -28,6 +29,7 @@ impl<'a> FirstMoveComputer<'a> {
             map,
             pool,
             pqueue,
+            state,
             g,
             successors,
             first_move,
@@ -43,16 +45,15 @@ impl<'a> FirstMoveComputer<'a> {
             map,
             ref mut pool,
             ref mut pqueue,
+            state,
             g,
             successors,
             first_move,
         } = *self;
-        let state = pool.state_member();
-
         pool.reset();
 
         let mut edges = vec![];
-        let mut expander = CanonicalGridExpander::new(&map, pool);
+        let mut expander = CanonicalGridExpander::new(&map, pool, state);
         let mut open = pqueue.new_queue(g, 0.999);
 
         let start_node = pool.generate(source);

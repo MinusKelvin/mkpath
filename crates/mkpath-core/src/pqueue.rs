@@ -19,7 +19,7 @@ pub struct PriorityQueue<'a, C> {
 ///
 /// # Safety
 /// If `Self::compatible_layout` returns true for a layout id, then it must be safe to pass
-// `NodeRef`s with that layout id to `Self::le`.
+/// `NodeRef`s with that layout id to `Self::le_unchecked`.
 pub unsafe trait FieldComparator {
     /// Perform `<=` comparison.
     ///

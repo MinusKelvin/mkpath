@@ -1,17 +1,18 @@
 //! Types and utilities for working with 8-connected grid maps.
 
 use mkpath_core::traits::Expander;
-use mkpath_core::NodeRef;
+use mkpath_core::{NodeMemberPointer, NodeRef};
 
-use crate::{BitGrid, Direction, GridEdge, GridStateMapper, SAFE_SQRT_2};
+use crate::{BitGrid, Direction, GridEdge, GridNodePool, SAFE_SQRT_2};
 
 pub struct EightConnectedExpander<'a, P> {
     map: &'a BitGrid,
     node_pool: &'a P,
+    state: NodeMemberPointer<(i32, i32)>,
 }
 
-impl<'a, P: GridStateMapper> EightConnectedExpander<'a, P> {
-    pub fn new(map: &'a BitGrid, node_pool: &'a P) -> Self {
+impl<'a, P: GridNodePool> EightConnectedExpander<'a, P> {
+    pub fn new(map: &'a BitGrid, node_pool: &'a P, state: NodeMemberPointer<(i32, i32)>) -> Self {
         // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
         // node pool.
         assert!(
@@ -23,15 +24,19 @@ impl<'a, P: GridStateMapper> EightConnectedExpander<'a, P> {
             "node pool must be tall enough for the map"
         );
 
-        EightConnectedExpander { map, node_pool }
+        EightConnectedExpander {
+            map,
+            node_pool,
+            state,
+        }
     }
 }
 
-impl<'a, P: GridStateMapper> Expander<'a> for EightConnectedExpander<'a, P> {
+impl<'a, P: GridNodePool> Expander<'a> for EightConnectedExpander<'a, P> {
     type Edge = GridEdge<'a>;
 
     fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<GridEdge<'a>>) {
-        let (x, y) = node.get(self.node_pool.state_member());
+        let (x, y) = node.get(self.state);
 
         assert!(
             self.map.get(x, y),

@@ -1,10 +1,11 @@
 use std::cell::Cell;
 use std::ptr::NonNull;
 
+use mkpath_core::traits::NodePool;
 use mkpath_core::{Node, NodeAllocator, NodeMemberPointer, NodeRef};
 
 use super::grid::Grid;
-use super::GridStateMapper;
+use super::GridNodePool;
 
 pub struct GridPool {
     state_map: Grid<Cell<(u64, *mut Node)>>,
@@ -42,28 +43,6 @@ impl GridPool {
     #[inline(always)]
     pub fn height(&self) -> i32 {
         self.state_map.height()
-    }
-
-    #[inline(always)]
-    pub fn state_member(&self) -> NodeMemberPointer<(i32, i32)> {
-        self.state_field
-    }
-
-    pub fn reset(&mut self) {
-        self.search_number = self.search_number.checked_add(1).unwrap_or_else(|| {
-            self.state_map
-                .storage_mut()
-                .fill(Cell::new((0, std::ptr::null_mut())));
-            1
-        });
-        self.allocator.reset();
-    }
-
-    #[track_caller]
-    #[inline(always)]
-    pub fn generate(&self, state: (i32, i32)) -> NodeRef {
-        let _ = self.state_map[state];
-        unsafe { self.generate_unchecked(state) }
     }
 
     #[track_caller]
@@ -117,17 +96,32 @@ impl GridPool {
     }
 }
 
-impl GridStateMapper for GridPool {
+impl NodePool for GridPool {
+    type State = (i32, i32);
+
+    fn reset(&mut self) {
+        self.search_number = self.search_number.checked_add(1).unwrap_or_else(|| {
+            self.state_map
+                .storage_mut()
+                .fill(Cell::new((0, std::ptr::null_mut())));
+            1
+        });
+        self.allocator.reset();
+    }
+
+    fn generate(&self, state: Self::State) -> NodeRef {
+        let _ = self.state_map[state];
+        unsafe { self.generate_unchecked(state) }
+    }
+}
+
+impl GridNodePool for GridPool {
     fn width(&self) -> i32 {
         self.width()
     }
 
     fn height(&self) -> i32 {
         self.height()
-    }
-
-    fn state_member(&self) -> NodeMemberPointer<(i32, i32)> {
-        self.state_member()
     }
 
     unsafe fn generate_unchecked(&self, state: (i32, i32)) -> NodeRef {

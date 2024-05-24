@@ -1,18 +1,23 @@
 use enumset::EnumSet;
 use mkpath_core::traits::Expander;
-use mkpath_core::NodeRef;
-use mkpath_grid::{BitGrid, Direction, GridEdge, GridStateMapper, SAFE_SQRT_2};
+use mkpath_core::{NodeMemberPointer, NodeRef};
+use mkpath_grid::{BitGrid, Direction, GridEdge, GridNodePool, SAFE_SQRT_2};
 
 use crate::canonical_successors;
 
 pub struct CanonicalGridExpander<'a, P> {
     node_pool: &'a P,
     map: &'a BitGrid,
+    state: NodeMemberPointer<(i32, i32)>,
 }
 
-impl<'a, P: GridStateMapper> CanonicalGridExpander<'a, P> {
-    pub fn new(map: &'a BitGrid, node_pool: &'a P) -> Self {
-        CanonicalGridExpander { node_pool, map }
+impl<'a, P: GridNodePool> CanonicalGridExpander<'a, P> {
+    pub fn new(map: &'a BitGrid, node_pool: &'a P, state: NodeMemberPointer<(i32, i32)>) -> Self {
+        CanonicalGridExpander {
+            node_pool,
+            map,
+            state,
+        }
     }
 
     pub unsafe fn expand_unchecked(
@@ -21,7 +26,7 @@ impl<'a, P: GridStateMapper> CanonicalGridExpander<'a, P> {
         edges: &mut Vec<GridEdge<'a>>,
         successors: EnumSet<Direction>,
     ) {
-        let (x, y) = node.get(self.node_pool.state_member());
+        let (x, y) = node.get(self.state);
 
         unsafe {
             // All nodes have the traversability of the relevant tile checked via successor set.
@@ -87,14 +92,14 @@ impl<'a, P: GridStateMapper> CanonicalGridExpander<'a, P> {
     }
 }
 
-impl<'a, P: GridStateMapper> Expander<'a> for CanonicalGridExpander<'a, P> {
+impl<'a, P: GridNodePool> Expander<'a> for CanonicalGridExpander<'a, P> {
     type Edge = GridEdge<'a>;
 
     fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<Self::Edge>) {
-        let (x, y) = node.get(self.node_pool.state_member());
+        let (x, y) = node.get(self.state);
 
         let dir = node.get_parent().and_then(|parent| {
-            let (px, py) = parent.get(self.node_pool.state_member());
+            let (px, py) = parent.get(self.state);
             crate::reached_direction((px, py), (x, y))
         });
 

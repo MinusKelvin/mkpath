@@ -1,4 +1,4 @@
-use mkpath_core::traits::Expander;
+use mkpath_core::traits::{Expander, NodePool};
 use mkpath_core::{HashPool, NodeBuilder, NodeMemberPointer};
 use mkpath_grid::{octile_distance, BitGrid, Direction};
 use mkpath_jps::{canonical_successors, reached_direction, JumpDatabase};
@@ -10,6 +10,7 @@ pub struct ToppingPlus<'a> {
     jump_db: &'a JumpDatabase,
     cpd: &'a PartialCellCpd,
     node_pool: HashPool<(i32, i32)>,
+    state: NodeMemberPointer<(i32, i32)>,
     cost: NodeMemberPointer<f64>,
 }
 
@@ -39,6 +40,7 @@ impl<'a> ToppingPlus<'a> {
             jump_db,
             cpd,
             node_pool: HashPool::new(builder.build(), state),
+            state,
             cost,
         }
     }
@@ -46,16 +48,23 @@ impl<'a> ToppingPlus<'a> {
     pub fn get_path(&mut self, start: (i32, i32), target: (i32, i32)) -> (Vec<(i32, i32)>, f64) {
         self.node_pool.reset();
 
+        let state = self.state;
         let cost = self.cost;
-        let state = self.node_pool.state_member();
 
         let start_node = self.node_pool.generate(start);
         let target_node = self.node_pool.generate(target);
         target_node.set(cost, 0.0);
 
         let mut starts = vec![];
-        TopsExpander::new(self.map, self.jump_db, self.cpd, &self.node_pool, target)
-            .expand(start_node, &mut starts);
+        TopsExpander::new(
+            self.map,
+            self.jump_db,
+            self.cpd,
+            &self.node_pool,
+            self.state,
+            target,
+        )
+        .expand(start_node, &mut starts);
 
         let mut node_stack = vec![];
 

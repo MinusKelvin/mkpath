@@ -5,12 +5,13 @@ use std::ptr::NonNull;
 use ahash::AHashMap;
 
 use crate::node::{Node, NodeAllocator, NodeMemberPointer, NodeRef};
+use crate::traits::NodePool;
 
 pub struct HashPool<S> {
     state_field: NodeMemberPointer<S>,
     allocator: NodeAllocator,
     // We use RefCell instead of UnsafeCell since the Hash implementation for S could
-    // theoretically reentrantly call HashPool::generate, which would cause UB.
+    // theoretically re-entrantly call HashPool::generate, which would cause UB.
     map: RefCell<AHashMap<S, NonNull<Node>>>,
 }
 
@@ -28,16 +29,23 @@ impl<S: Copy + Hash + Eq + 'static> HashPool<S> {
         }
     }
 
-    pub fn state_member(&self) -> NodeMemberPointer<S> {
-        self.state_field
+    pub fn get(&self, state: &S) -> Option<NodeRef> {
+        self.map
+            .borrow()
+            .get(state)
+            .map(|&ptr| unsafe { NodeRef::from_raw(ptr) })
     }
+}
 
-    pub fn reset(&mut self) {
+impl<S: Copy + Hash + Eq + 'static> NodePool for HashPool<S> {
+    type State = S;
+
+    fn reset(&mut self) {
         self.map.get_mut().clear();
         self.allocator.reset();
     }
 
-    pub fn generate(&self, state: S) -> NodeRef {
+    fn generate(&self, state: Self::State) -> NodeRef {
         unsafe {
             NodeRef::from_raw(*self.map.borrow_mut().entry(state).or_insert_with(|| {
                 let node = self.allocator.new_node();
@@ -45,12 +53,5 @@ impl<S: Copy + Hash + Eq + 'static> HashPool<S> {
                 node.into_raw()
             }))
         }
-    }
-
-    pub fn get(&self, state: &S) -> Option<NodeRef> {
-        self.map
-            .borrow()
-            .get(state)
-            .map(|&ptr| unsafe { NodeRef::from_raw(ptr) })
     }
 }
