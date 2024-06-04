@@ -89,10 +89,14 @@ impl CpdRow {
     }
 
     pub fn compress(first_move_bits: impl IntoIterator<Item = u64>) -> Box<CpdRow> {
+        Self::compress_runs(first_move_bits.into_iter().enumerate())
+    }
+
+    pub fn compress_runs(first_move_bits: impl IntoIterator<Item = (usize, u64)>) -> Box<CpdRow> {
         let mut runs = vec![];
         let mut current_id = 0;
         let mut current_moves = !0;
-        for (id, moves) in first_move_bits.into_iter().enumerate().chain(Some((0, 0))) {
+        for (id, moves) in first_move_bits.into_iter().chain(Some((0, 0))) {
             if current_moves & moves == 0 {
                 runs.push(CpdEntry(current_id | current_moves.trailing_zeros() << 26));
                 current_id = id as u32;
