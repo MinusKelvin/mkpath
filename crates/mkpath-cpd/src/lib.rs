@@ -112,6 +112,10 @@ impl CpdRow {
         Self::from_raw_box(runs.into_boxed_slice())
     }
 
+    pub fn len(&self) -> usize {
+        self.runs.len()
+    }
+
     pub fn lookup(&self, id: usize) -> usize {
         let mut i = 0;
         let mut result = 0;
