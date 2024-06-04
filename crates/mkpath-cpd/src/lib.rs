@@ -19,17 +19,18 @@ pub fn dfs_traversal<'a, E: Expander<'a, Edge = Edge>, Edge: Successor<'a>>(
     mut expander: E,
     mut found: impl FnMut(NodeRef<'a>) -> bool,
 ) {
-    let mut stack = vec![vec![]];
     found(start);
-    expander.expand(start, &mut stack[0]);
+    let mut edges = vec![];
+    expander.expand(start, &mut edges);
+    let mut stack = vec![edges.into_iter()];
 
     while let Some(edges) = stack.last_mut() {
-        if let Some(edge) = edges.pop() {
+        if let Some(edge) = edges.next() {
             let node = edge.successor();
             if found(node) {
                 let mut new_edges = vec![];
                 expander.expand(node, &mut new_edges);
-                stack.push(new_edges);
+                stack.push(new_edges.into_iter());
             }
         } else {
             stack.pop();
