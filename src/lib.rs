@@ -4,6 +4,7 @@ pub use mkpath_cpd as cpd;
 pub use mkpath_grid as grid;
 pub use mkpath_jps as jps;
 pub use mkpath_grid_gb as grid_gb;
+pub use mkpath_ess as ess;
 
 pub struct AStarSearcher {
     g: NodeMemberPointer<f64>,

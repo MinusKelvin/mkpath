@@ -9,6 +9,7 @@ mkpath-grid = { path = "crates/mkpath-grid" }
 mkpath-jps = { path = "crates/mkpath-jps" }
 mkpath-cpd = { path = "crates/mkpath-cpd" }
 mkpath-grid-gb = { path = "crates/mkpath-grid-gb" }
+mkpath-ess = { path = "crates/mkpath-ess" }
 
 [package]
 name = "mkpath"
@@ -22,6 +23,7 @@ mkpath-grid = { workspace = true }
 mkpath-jps = { workspace = true }
 mkpath-cpd = { workspace = true }
 mkpath-grid-gb = { workspace = true }
+mkpath-ess = { workspace = true }
 
 [dev-dependencies]
 rayon = "1.9.0"
