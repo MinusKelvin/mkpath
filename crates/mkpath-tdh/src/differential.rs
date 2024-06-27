@@ -1,10 +1,11 @@
 use std::io::{Read, Write};
 
-use mkpath_core::traits::{Cost, Expander, NodePool, OpenList, Successor};
-use mkpath_core::{NodeBuilder, PriorityQueueFactory};
+use mkpath_core::traits::{Cost, Expander, Successor};
 use mkpath_ess::{ExplicitStateSpace, Mapper};
 use rand::Rng;
 use rand_pcg::Pcg64;
+
+use crate::Searcher;
 
 pub struct DifferentialHeuristic<SS: ExplicitStateSpace, const N: usize> {
     data: SS::Auxiliary<[f64; N]>,
@@ -26,42 +27,36 @@ impl<SS: ExplicitStateSpace, const N: usize> DifferentialHeuristic<SS, N> {
             .max()
             .unwrap_or(0);
 
-        let mut builder = NodeBuilder::new();
-        let state = domain.add_state_field(&mut builder);
-        let g = builder.add_field(f64::INFINITY);
-        let mut pqueue = PriorityQueueFactory::new(&mut builder);
-        let mut pool = domain.new_node_pool(builder.build_with_capacity(nodes_required), state);
+        let mut searcher = Searcher::new(domain, nodes_required);
 
         for component in 0..mapper.components() {
             let id_range = mapper.component_id_range(component);
             for i in 0..N {
-                let pivot = mapper.to_state(rng.gen_range(id_range.clone()));
-
-                pool.reset();
-                let mut queue = pqueue.new_queue(g);
-                let mut expander = domain.new_expander(&pool, state);
-                let mut edges = vec![];
-                let start = pool.generate(pivot);
-                start.set(g, 0.0);
-                queue.relaxed(start);
-
-                while let Some(node) = queue.next() {
-                    let node_g = node.get(g);
-                    this.data[node.get(state)][i] = node_g;
-
-                    edges.clear();
-                    expander.expand(node, &mut edges);
-
-                    for edge in &edges {
-                        let successor = edge.successor();
-                        let new_g = node_g + edge.cost();
-                        if new_g < successor.get(g) {
-                            successor.set(g, new_g);
-                            successor.set_parent(Some(node));
-                            queue.relaxed(successor);
+                let mut pivot = mapper.to_state(rng.gen_range(id_range.clone()));
+                let mut dist = 0.0;
+                if i == 0 {
+                    searcher.search(domain, pivot, |state, g| {
+                        if g > dist {
+                            dist = g;
+                            pivot = state;
+                        }
+                    });
+                } else {
+                    for id in id_range.clone() {
+                        let state = mapper.to_state(id);
+                        let d = this.data[state]
+                            .iter()
+                            .fold(f64::INFINITY, |prev, &new| prev.min(new));
+                        if d > dist {
+                            dist = d;
+                            pivot = state;
                         }
                     }
                 }
+
+                searcher.search(domain, pivot, |state, g| {
+                    this.data[state][i] = g;
+                });
             }
         }
 
