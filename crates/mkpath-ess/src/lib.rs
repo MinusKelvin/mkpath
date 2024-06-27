@@ -32,11 +32,11 @@ pub struct Mapper<S: ExplicitStateSpace> {
     component_ends: Vec<usize>,
 }
 
-impl<S: ExplicitStateSpace> Mapper<S>
-where
-    for<'a> <S::Expander<'a> as Expander<'a>>::Edge: Successor<'a>,
-{
-    pub fn dfs_preorder(domain: &S) -> Self {
+impl<S: ExplicitStateSpace> Mapper<S> {
+    pub fn dfs_preorder(domain: &S) -> Self
+    where
+        for<'a> <S::Expander<'a> as Expander<'a>>::Edge: Successor<'a>,
+    {
         let states = domain.list_valid_states();
         let mut from_id = Vec::with_capacity(states.len());
         let mut to_id = domain.new_auxiliary(|_| usize::MAX);
