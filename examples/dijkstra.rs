@@ -1,21 +1,21 @@
 use std::path::PathBuf;
 
+use clap::Parser;
 use mkpath::grid::{EightConnectedExpander, GridPool};
 use mkpath::traits::{Expander, NodePool, OpenList};
 use mkpath::NodeBuilder;
 use mkpath_cpd::BucketQueueFactory;
 use mkpath_grid::GridEdge;
-use structopt::StructOpt;
 
 mod movingai;
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Options {
     scen: PathBuf,
 }
 
 fn main() {
-    let opt = Options::from_args();
+    let opt = Options::parse();
 
     let t1 = std::time::Instant::now();
 

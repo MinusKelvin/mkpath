@@ -3,6 +3,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use clap::Parser;
 use mkpath::cpd::{CpdRow, FirstMoveSearcher, StateIdMapper};
 use mkpath::grid::{EightConnectedExpander, Grid, GridPool};
 use mkpath::traits::NodePool;
@@ -10,19 +11,18 @@ use mkpath::NodeBuilder;
 use mkpath_cpd::BucketQueueFactory;
 use mkpath_grid::{Direction, SAFE_SQRT_2};
 use rayon::prelude::*;
-use structopt::StructOpt;
 
 mod movingai;
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Options {
     path: PathBuf,
-    #[structopt(long)]
+    #[arg(long)]
     generate: bool,
 }
 
 fn main() {
-    let opt = Options::from_args();
+    let opt = Options::parse();
 
     if opt.generate {
         let mut cpd_file = opt.path.clone();

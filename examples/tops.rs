@@ -2,24 +2,24 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 use std::path::PathBuf;
 
+use clap::Parser;
 use mkpath::traits::NodePool;
 use mkpath::{AStarSearcher, HashPool, NodeBuilder, PriorityQueueFactory};
 use mkpath_grid::octile_distance;
 use mkpath_grid_gb::{PartialCellCpd, TopsExpander};
 use mkpath_jps::JumpDatabase;
-use structopt::StructOpt;
 
 mod movingai;
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Options {
     path: PathBuf,
-    #[structopt(long)]
+    #[arg(long)]
     generate: bool,
 }
 
 fn main() {
-    let opt = Options::from_args();
+    let opt = Options::parse();
 
     if opt.generate {
         let mut cpd_file = opt.path.clone();

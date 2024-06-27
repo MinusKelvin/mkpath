@@ -1,20 +1,20 @@
 use std::path::PathBuf;
 
+use clap::Parser;
 use mkpath::grid::octile_distance;
 use mkpath::jps::{JpsPlusExpander, JumpDatabase};
 use mkpath::traits::NodePool;
 use mkpath::{AStarSearcher, HashPool, NodeBuilder, PriorityQueueFactory};
-use structopt::StructOpt;
 
 mod movingai;
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Options {
     scen: PathBuf,
 }
 
 fn main() {
-    let opt = Options::from_args();
+    let opt = Options::parse();
 
     let t1 = std::time::Instant::now();
 
