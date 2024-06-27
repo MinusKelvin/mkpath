@@ -39,7 +39,7 @@ impl<SS: ExplicitStateSpace, const N: usize> DifferentialHeuristic<SS, N> {
 
                 pool.reset();
                 let mut queue = pqueue.new_queue(g);
-                let mut expander = domain.new_expander(&pool);
+                let mut expander = domain.new_expander(&pool, state);
                 let mut edges = vec![];
                 let start = pool.generate(pivot);
                 start.set(g, 0.0);

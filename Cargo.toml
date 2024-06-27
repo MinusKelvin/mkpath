@@ -10,6 +10,7 @@ mkpath-jps = { path = "crates/mkpath-jps" }
 mkpath-cpd = { path = "crates/mkpath-cpd" }
 mkpath-grid-gb = { path = "crates/mkpath-grid-gb" }
 mkpath-ess = { path = "crates/mkpath-ess" }
+mkpath-tdh = { path = "crates/mkpath-tdh" }
 
 [package]
 name = "mkpath"
@@ -24,6 +25,7 @@ mkpath-jps = { workspace = true }
 mkpath-cpd = { workspace = true }
 mkpath-grid-gb = { workspace = true }
 mkpath-ess = { workspace = true }
+mkpath-tdh = { workspace = true }
 
 [dev-dependencies]
 clap = { version = "4.5.7", features = ["derive"] }

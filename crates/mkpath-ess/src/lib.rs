@@ -21,7 +21,11 @@ pub trait ExplicitStateSpace {
         state: NodeMemberPointer<Self::State>,
     ) -> Self::NodePool;
 
-    fn new_expander<'a>(&'a self, node_pool: &'a Self::NodePool) -> Self::Expander<'a>;
+    fn new_expander<'a>(
+        &'a self,
+        node_pool: &'a Self::NodePool,
+        state: NodeMemberPointer<Self::State>,
+    ) -> Self::Expander<'a>;
 
     fn list_valid_states(&self) -> Vec<Self::State>;
 }
@@ -52,7 +56,7 @@ impl<S: ExplicitStateSpace> Mapper<S> {
             }
 
             node_pool.reset();
-            let mut expander = domain.new_expander(&node_pool);
+            let mut expander = domain.new_expander(&node_pool, state);
 
             let start = node_pool.generate(s);
 
