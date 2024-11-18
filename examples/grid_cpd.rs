@@ -8,7 +8,7 @@ use mkpath::cpd::{CpdRow, FirstMoveSearcher, StateIdMapper};
 use mkpath::grid::{EightConnectedExpander, Grid, GridPool};
 use mkpath::traits::NodePool;
 use mkpath::NodeBuilder;
-use mkpath_cpd::BucketQueueFactory;
+use mkpath_grid::bucket_queue::BucketQueueFactory;
 use mkpath_grid::{Direction, SAFE_SQRT_2};
 use rayon::prelude::*;
 

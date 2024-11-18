@@ -1,7 +1,7 @@
 use enumset::EnumSet;
 use mkpath_core::traits::{Expander, NodePool, OpenList};
 use mkpath_core::{NodeBuilder, NodeMemberPointer};
-use mkpath_cpd::BucketQueueFactory;
+use mkpath_grid::bucket_queue::BucketQueueFactory;
 use mkpath_grid::{BitGrid, Direction, GridPool};
 use mkpath_jps::{canonical_successors, CanonicalGridExpander};
 

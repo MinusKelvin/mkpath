@@ -5,6 +5,7 @@ mod bitgrid;
 mod eight_connected;
 mod grid;
 mod grid_pool;
+pub mod bucket_queue;
 
 use enumset::EnumSetType;
 use mkpath_core::traits::{Cost, EdgeId, NodePool, Successor};

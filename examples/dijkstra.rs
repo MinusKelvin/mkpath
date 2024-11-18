@@ -4,7 +4,7 @@ use clap::Parser;
 use mkpath::grid::{EightConnectedExpander, GridPool};
 use mkpath::traits::{Expander, NodePool, OpenList};
 use mkpath::NodeBuilder;
-use mkpath_cpd::BucketQueueFactory;
+use mkpath_grid::bucket_queue::BucketQueueFactory;
 use mkpath_grid::GridEdge;
 
 mod movingai;
