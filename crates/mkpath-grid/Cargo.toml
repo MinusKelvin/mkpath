@@ -9,3 +9,4 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 enumset = "1.1.3"
 mkpath-core = { workspace = true }
+mkpath-ess = { workspace = true }

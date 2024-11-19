@@ -1,9 +1,10 @@
 //! Types and utilities for working with 8-connected grid maps.
 
 use mkpath_core::traits::Expander;
-use mkpath_core::{NodeMemberPointer, NodeRef};
+use mkpath_core::{NodeAllocator, NodeBuilder, NodeMemberPointer, NodeRef};
+use mkpath_ess::ExplicitStateSpace;
 
-use crate::{BitGrid, Direction, GridEdge, GridNodePool, SAFE_SQRT_2};
+use crate::{BitGrid, Direction, Grid, GridEdge, GridNodePool, GridPool, SAFE_SQRT_2};
 
 pub struct EightConnectedExpander<'a, P> {
     map: &'a BitGrid,
@@ -124,4 +125,57 @@ pub fn octile_distance(from: (i32, i32), to: (i32, i32)) -> f64 {
     let diagonals = dx.min(dy);
     let orthos = dx.max(dy) - diagonals;
     orthos as f64 + diagonals as f64 * SAFE_SQRT_2
+}
+
+pub struct EightConnectedDomain(pub BitGrid);
+
+impl ExplicitStateSpace for EightConnectedDomain {
+    type State = (i32, i32);
+
+    type Auxiliary<T> = Grid<T>;
+
+    type NodePool = GridPool;
+
+    type Expander<'a> = EightConnectedExpander<'a, Self::NodePool>
+    where
+        Self: 'a;
+
+    fn new_auxiliary<T>(&self, mut init: impl FnMut(Self::State) -> T) -> Self::Auxiliary<T> {
+        Grid::new(self.0.width(), self.0.height(), |x, y| init((x, y)))
+    }
+
+    fn add_state_field(
+        &self,
+        builder: &mut NodeBuilder,
+    ) -> NodeMemberPointer<Self::State> {
+        builder.add_field((-1, -1))
+    }
+
+    fn new_node_pool(
+        &self,
+        alloc: NodeAllocator,
+        state: NodeMemberPointer<Self::State>,
+    ) -> Self::NodePool {
+        GridPool::new(alloc, state, self.0.width(), self.0.height())
+    }
+
+    fn new_expander<'a>(
+        &'a self,
+        node_pool: &'a Self::NodePool,
+        state: NodeMemberPointer<Self::State>,
+    ) -> Self::Expander<'a> {
+        EightConnectedExpander::new(&self.0, node_pool, state)
+    }
+
+    fn list_valid_states(&self) -> Vec<Self::State> {
+        let mut res = vec![];
+        for y in 0..self.0.height() {
+            for x in 0..self.0.width() {
+                if self.0.get(x, y) {
+                    res.push((x, y));
+                }
+            }
+        }
+        res
+    }
 }

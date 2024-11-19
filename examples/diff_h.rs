@@ -1,11 +1,10 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use mkpath::grid::{EightConnectedExpander, GridPool};
+use mkpath::grid::{EightConnectedExpander, GridPool, EightConnectedDomain};
 use mkpath::traits::NodePool;
-use mkpath::{AStarSearcher, NodeAllocator, NodeBuilder, NodeMemberPointer, PriorityQueueFactory};
-use mkpath_ess::{ExplicitStateSpace, Mapper};
-use mkpath_grid::{BitGrid, Grid};
+use mkpath::{AStarSearcher, NodeBuilder, PriorityQueueFactory};
+use mkpath_ess::Mapper;
 use mkpath_tdh::DifferentialHeuristic;
 
 mod movingai;
@@ -15,59 +14,13 @@ struct Options {
     path: PathBuf,
 }
 
-struct EightConnectedGrid(BitGrid);
-
-impl ExplicitStateSpace for EightConnectedGrid {
-    type State = (i32, i32);
-
-    type Auxiliary<T> = Grid<T>;
-
-    type NodePool = GridPool;
-
-    type Expander<'a> = EightConnectedExpander<'a, GridPool>
-    where
-        Self: 'a;
-
-    fn new_auxiliary<T>(&self, mut init: impl FnMut(Self::State) -> T) -> Self::Auxiliary<T> {
-        Grid::new(self.0.width(), self.0.height(), |x, y| init((x, y)))
-    }
-
-    fn add_state_field(&self, builder: &mut NodeBuilder) -> NodeMemberPointer<Self::State> {
-        builder.add_field((-1, -1))
-    }
-
-    fn new_node_pool(
-        &self,
-        alloc: NodeAllocator,
-        state: NodeMemberPointer<Self::State>,
-    ) -> Self::NodePool {
-        GridPool::new(alloc, state, self.0.width(), self.0.height())
-    }
-
-    fn new_expander<'a>(&'a self, node_pool: &'a Self::NodePool, state: NodeMemberPointer<Self::State>) -> Self::Expander<'a> {
-        EightConnectedExpander::new(&self.0, node_pool, state)
-    }
-
-    fn list_valid_states(&self) -> Vec<Self::State> {
-        let mut res = vec![];
-        for y in 0..self.0.height() {
-            for x in 0..self.0.width() {
-                if self.0.get(x, y) {
-                    res.push((x, y));
-                }
-            }
-        }
-        res
-    }
-}
-
 fn main() {
     let opt = Options::parse();
 
     let t1 = std::time::Instant::now();
 
     let scen = movingai::read_scenario(&opt.path).unwrap();
-    let map = EightConnectedGrid(movingai::read_bitgrid(&scen.map).unwrap());
+    let map = EightConnectedDomain(movingai::read_bitgrid(&scen.map).unwrap());
 
     let mapper = Mapper::dfs_preorder(&map);
 
