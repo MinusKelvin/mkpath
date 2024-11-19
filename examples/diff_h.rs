@@ -20,17 +20,17 @@ fn main() {
     let t1 = std::time::Instant::now();
 
     let scen = movingai::read_scenario(&opt.path).unwrap();
-    let map = EightConnectedDomain(movingai::read_bitgrid(&scen.map).unwrap());
+    let map = movingai::read_bitgrid(&scen.map).unwrap();
 
-    let mapper = Mapper::dfs_preorder(&map);
+    let mapper = Mapper::dfs_preorder(EightConnectedDomain::from_ref(&map));
 
-    let diff_h = DifferentialHeuristic::<_, 8>::calculate(&map, &mapper);
+    let diff_h = DifferentialHeuristic::<_, 8>::calculate(EightConnectedDomain::from_ref(&map), &mapper);
 
     let mut builder = NodeBuilder::new();
     let state = builder.add_field((-1, -1));
     let mut astar = AStarSearcher::new(&mut builder);
     let mut open_list_factory = PriorityQueueFactory::new(&mut builder);
-    let mut pool = GridPool::new(builder.build(), state, map.0.width(), map.0.height());
+    let mut pool = GridPool::new(builder.build(), state, map.width(), map.height());
 
     let t2 = std::time::Instant::now();
 
@@ -38,7 +38,7 @@ fn main() {
         pool.reset();
 
         let open_list = open_list_factory.new_queue(astar.ordering());
-        let expander = EightConnectedExpander::new(&map.0, &pool, state);
+        let expander = EightConnectedExpander::new(&map, &pool, state);
 
         let result = astar.search(
             expander,

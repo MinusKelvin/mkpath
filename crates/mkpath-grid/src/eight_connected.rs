@@ -127,7 +127,16 @@ pub fn octile_distance(from: (i32, i32), to: (i32, i32)) -> f64 {
     orthos as f64 + diagonals as f64 * SAFE_SQRT_2
 }
 
+#[repr(transparent)]
 pub struct EightConnectedDomain(pub BitGrid);
+
+impl EightConnectedDomain {
+    pub fn from_ref(value: &BitGrid) -> &Self {
+        // SAFETY: EightConnectedDomain has the same representation as BitGrid
+        //         (transparent repr), so punning the referent type is safe.
+        unsafe { &*(value as *const _ as *const _) }
+    }
+}
 
 impl ExplicitStateSpace for EightConnectedDomain {
     type State = (i32, i32);
@@ -144,10 +153,7 @@ impl ExplicitStateSpace for EightConnectedDomain {
         Grid::new(self.0.width(), self.0.height(), |x, y| init((x, y)))
     }
 
-    fn add_state_field(
-        &self,
-        builder: &mut NodeBuilder,
-    ) -> NodeMemberPointer<Self::State> {
+    fn add_state_field(&self, builder: &mut NodeBuilder) -> NodeMemberPointer<Self::State> {
         builder.add_field((-1, -1))
     }
 
