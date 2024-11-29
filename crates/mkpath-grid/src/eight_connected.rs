@@ -6,14 +6,14 @@ use mkpath_ess::ExplicitStateSpace;
 
 use crate::{BitGrid, Direction, Grid, GridEdge, GridNodePool, GridPool, SAFE_SQRT_2};
 
-pub struct EightConnectedExpander<'a, P> {
+pub struct EightConnectedExpander<'s, 'a, P> {
     map: &'a BitGrid,
-    node_pool: &'a P,
+    node_pool: &'s P,
     state: NodeMemberPointer<(i32, i32)>,
 }
 
-impl<'a, P: GridNodePool> EightConnectedExpander<'a, P> {
-    pub fn new(map: &'a BitGrid, node_pool: &'a P, state: NodeMemberPointer<(i32, i32)>) -> Self {
+impl<'s, 'a, P: GridNodePool> EightConnectedExpander<'s, 'a, P> {
+    pub fn new(map: &'a BitGrid, node_pool: &'s P, state: NodeMemberPointer<(i32, i32)>) -> Self {
         // Establish invariant that coordinates in-bounds of the map are also in-bounds of the
         // node pool.
         assert!(
@@ -33,10 +33,10 @@ impl<'a, P: GridNodePool> EightConnectedExpander<'a, P> {
     }
 }
 
-impl<'a, P: GridNodePool> Expander<'a> for EightConnectedExpander<'a, P> {
-    type Edge = GridEdge<'a>;
+impl<'s, 'a, P: GridNodePool> Expander<'s> for EightConnectedExpander<'s, 'a, P> {
+    type Edge = GridEdge<'s>;
 
-    fn expand(&mut self, node: NodeRef<'a>, edges: &mut Vec<GridEdge<'a>>) {
+    fn expand(&mut self, node: NodeRef<'s>, edges: &mut Vec<GridEdge<'s>>) {
         let (x, y) = node.get(self.state);
 
         assert!(
@@ -145,9 +145,9 @@ impl ExplicitStateSpace for EightConnectedDomain {
 
     type NodePool = GridPool;
 
-    type Expander<'a> = EightConnectedExpander<'a, Self::NodePool>
+    type Expander<'s> = EightConnectedExpander<'s, 's, Self::NodePool>
     where
-        Self: 'a;
+        Self: 's;
 
     fn new_auxiliary<T>(&self, mut init: impl FnMut(Self::State) -> T) -> Self::Auxiliary<T> {
         Grid::new(self.0.width(), self.0.height(), |x, y| init((x, y)))
