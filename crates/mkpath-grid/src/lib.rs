@@ -18,7 +18,7 @@ pub use self::grid_pool::*;
 
 pub const SAFE_SQRT_2: f64 = std::f32::consts::SQRT_2 as f64;
 
-#[derive(EnumSetType, Debug)]
+#[derive(EnumSetType, Debug, Hash)]
 pub enum Direction {
     North,
     West,
