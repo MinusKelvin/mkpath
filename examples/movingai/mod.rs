@@ -175,7 +175,7 @@ pub fn read_bitgrid(map: &Path) -> Result<BitGrid> {
             if x as i32 >= map.width() {
                 return Err(Error::other("too many columns of map"));
             }
-            map.set(x as i32, y as i32, matches!(cell, '.' | 'G' | 'S' | 'W'));
+            map.set(x as i32, y as i32, matches!(cell, '.' | 'G' | 'S'));
         }
     }
 

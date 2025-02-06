@@ -173,15 +173,15 @@ macro_rules! tuple_fieldcmp_impl {
     (@cmp $self:ident $lhs:ident $rhs:ident $last:tt) => {
         unsafe { $self.$last.le_unchecked($lhs, $rhs) }
     };
-    (@cmp $self:ident $lhs:ident $rhs:ident $next:tt $($rest:tt)+) => {
-        if unsafe { $self.$next.le_unchecked($lhs, $rhs) } {
-            true
-        } else if unsafe { $self.$next.le_unchecked($rhs, $lhs) } {
-            false
-        } else {
+    (@cmp $self:ident $lhs:ident $rhs:ident $next:tt $($rest:tt)+) => {{
+        let l_leq_r = unsafe { $self.$next.le_unchecked($lhs, $rhs) };
+        let r_leq_l = unsafe { $self.$next.le_unchecked($rhs, $lhs) };
+        if l_leq_r && r_leq_l {
             tuple_fieldcmp_impl!(@cmp $self $lhs $rhs $($rest)*)
+        } else {
+            l_leq_r
         }
-    };
+    }};
 }
 
 tuple_fieldcmp_impl!(A 0);

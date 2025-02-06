@@ -21,6 +21,13 @@ pub fn transpose(map: &BitGrid) -> BitGrid {
     tmap
 }
 
+pub fn turning_point(from: (i32, i32), to: (i32, i32)) -> (i32, i32) {
+    let dx = to.0 - from.0;
+    let dy = to.1 - from.1;
+    let diagonal_steps = dx.abs().max(dy.abs());
+    (from.0 + diagonal_steps * dx.signum(), from.1 + diagonal_steps * dy.signum())
+}
+
 pub fn reached_direction(from: (i32, i32), to: (i32, i32)) -> Option<Direction> {
     let dx = to.0 - from.0;
     let dy = to.1 - from.1;
