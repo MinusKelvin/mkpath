@@ -12,10 +12,7 @@ struct Searcher<SS: ExplicitStateSpace> {
     g: NodeMemberPointer<f64>,
 }
 
-impl<SS: ExplicitStateSpace> Searcher<SS>
-where
-    for<'a> <SS::Expander<'a> as Expander<'a>>::Edge: Successor<'a> + Cost,
-{
+impl<SS: ExplicitStateSpace> Searcher<SS> {
     fn new(domain: &SS, nodes_required: usize) -> Self {
         let mut builder = NodeBuilder::new();
         let state = domain.add_state_field(&mut builder);
@@ -30,7 +27,12 @@ where
             g,
         }
     }
+}
 
+impl<SS: ExplicitStateSpace> Searcher<SS>
+where
+    for<'a> <SS::Expander<'a> as Expander<'a>>::Edge: Successor<'a> + Cost,
+{
     fn search(&mut self, domain: &SS, start: SS::State, mut f: impl FnMut(SS::State, f64)) {
         let Self {
             ref mut node_pool,
