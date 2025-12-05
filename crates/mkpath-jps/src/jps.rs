@@ -200,14 +200,37 @@ impl<'a, P: GridNodePool> JpsExpander<'a, P> {
 unsafe fn jump_left(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
     unsafe {
         // See jump_right below; the logic is the same, except with reversed bit order.
+        let row_above = map.get_row_left(x, y - 1);
+        let row = map.get_row_left(x, y);
+        let row_below = map.get_row_left(x, y + 1);
+
+        let above_turning = !row_above >> 1 & row_above;
+        let below_turning = !row_below >> 1 & row_below;
+        let stops = (above_turning | below_turning | !row) & !0x7F;
+
+        if stops != 0 {
+            let dist = stops.leading_zeros() as i32;
+            return (x - dist, row & (1 << (63 - dist)) != 0);
+        }
+        x -= 56;
+        // Establish alignment on the byte boundary by rounding x up to 6 mod 8.
+        x = (x | 7) + 7;
+
         loop {
+            if 7 - (x + 1) % 8 != 0 {
+                #[cfg(debug_assertions)]
+                unreachable!();
+                #[cfg(not(debug_assertions))]
+                std::hint::unreachable_unchecked();
+            }
+
             let row_above = map.get_row_left(x, y - 1);
             let row = map.get_row_left(x, y);
             let row_below = map.get_row_left(x, y + 1);
 
             let above_turning = !row_above >> 1 & row_above;
             let below_turning = !row_below >> 1 & row_below;
-            let stops = (above_turning | below_turning | !row) & !0x7F;
+            let stops = above_turning | below_turning | !row;
 
             if stops != 0 {
                 let dist = stops.leading_zeros() as i32;
@@ -232,14 +255,36 @@ unsafe fn jump_left(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
 #[inline(always)]
 unsafe fn jump_right(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
     unsafe {
-        // This loop's logic is very similar to the following loop's logic.
-        // DY == 0 disables all_1s-optimized jumps.
-        // DY != 0 assumes that the -DY row is 1s as long as x < all_1s, so we don't check it.
-        // This saves a get_row call and 4 bitops, about 3% on large maps.
-        // We stop when the next block could contain a jump point on the -DY side, and switch to
-        // normal jumping.
+        // We unroll one jump iteration here, which will align x onto the map's byte boundary.
+        // See below loop for information on how this works.
+        let row_above = map.get_row_right(x, y - 1);
+        let row = map.get_row_right(x, y);
+        let row_below = map.get_row_right(x, y + 1);
+
+        let above_turning = !row_above << 1 & row_above;
+        let below_turning = !row_below << 1 & row_below;
+        // This mask is not present 
+        let stops = (above_turning | below_turning | !row) & ((1 << 57) - 1);
+
+        if stops != 0 {
+            let dist = stops.trailing_zeros() as i32;
+            return (x + dist, row & 1 << dist != 0);
+        }
+
+        x += 56;
+        // Establish alignment on the byte boundary by rounding x down to 7 mod 8.
+        x = (x | 7) - 8;
+
         // Invariant: x and y are in-bounds of map.
         loop {
+            // Verify alignment (crash in debug, allow compiler to optimize with this in release)
+            if (x + 1) % 8 != 0 {
+                #[cfg(debug_assertions)]
+                unreachable!();
+                #[cfg(not(debug_assertions))]
+                std::hint::unreachable_unchecked();
+            }
+
             // y is in-bounds, so y +- 1 must be padded in-bounds, as required.
             let row_above = map.get_row_right(x, y - 1);
             let row = map.get_row_right(x, y);
@@ -248,7 +293,10 @@ unsafe fn jump_right(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
             // This puts a 1 where a 0 -> 1 pattern occurs, which is a jump point.
             let above_turning = !row_above << 1 & row_above;
             let below_turning = !row_below << 1 & row_below;
-            let stops = (above_turning | below_turning | !row) & ((1 << 57) - 1);
+            // In general, this should be masked with `(1 << 57) - 1` (all 1s except top 8 bits).
+            // However, since we are aligned to a byte boundary, we know that we got a full 64 bits
+            // of information from get_row_right(), and so there are no false positives to remove.
+            let stops = above_turning | below_turning | !row;
 
             if stops != 0 {
                 let dist = stops.trailing_zeros() as i32;
