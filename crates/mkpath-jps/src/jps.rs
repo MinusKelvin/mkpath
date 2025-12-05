@@ -68,22 +68,20 @@ impl<'a, P: GridNodePool> JpsExpander<'a, P> {
     /// - `x+DX`, `y` is traversable.
     ///
     /// Returns the x coordinate at which the jump stopped (all_1s for adjacent jump).
-    unsafe fn jump_x<const DX: i32, const DY: i32>(
+    unsafe fn jump_x<const DX: i32>(
         &self,
         edges: &mut Vec<WeightedEdge<'a>>,
         x: i32,
         y: i32,
         cost: f64,
-        all_1s: i32,
-    ) -> i32 {
+    ) {
         let (mut new_x, mut successor) = unsafe {
             match DX {
-                -1 => jump_left::<DY>(&self.map, x, y, all_1s),
-                1 => jump_right::<DY>(&self.map, x, y, all_1s),
+                -1 => jump_left(&self.map, x, y),
+                1 => jump_right(&self.map, x, y),
                 _ => unreachable!(),
             }
         };
-        let all_1s = new_x;
         if y == self.target.1 && skipped_past::<DX>(x, new_x, self.target.0) {
             successor = true;
             new_x = self.target.0;
@@ -94,7 +92,6 @@ impl<'a, P: GridNodePool> JpsExpander<'a, P> {
                 cost: cost + (DX * (new_x - x)) as f64,
             });
         }
-        all_1s
     }
 
     /// Jumps vertically.
@@ -106,24 +103,22 @@ impl<'a, P: GridNodePool> JpsExpander<'a, P> {
     /// - `x`, `y+DY` is traversable.
     ///
     /// Returns the y coordinate at which the jump stopped (all_1s for adjacent jump).
-    unsafe fn jump_y<const DX: i32, const DY: i32>(
+    unsafe fn jump_y<const DY: i32>(
         &self,
         edges: &mut Vec<WeightedEdge<'a>>,
         x: i32,
         y: i32,
         cost: f64,
-        all_1s: i32,
-    ) -> i32 {
+    ) {
         let (mut new_y, mut successor) = unsafe {
             // The preconditions are upheld by the caller. Note that JpsGrid has the invariant
             // that tmap is the transpose of map.
             match DY {
-                -1 => jump_left::<DX>(&self.tmap, y, x, all_1s),
-                1 => jump_right::<DX>(&self.tmap, y, x, all_1s),
+                -1 => jump_left(&self.tmap, y, x),
+                1 => jump_right(&self.tmap, y, x),
                 _ => unreachable!(),
             }
         };
-        let all_1s = new_y;
         if x == self.target.0 && skipped_past::<DY>(y, new_y, self.target.1) {
             // self.target.1 is strictly between y (in-bounds) and new_y (padded in-bounds),
             // so self.target.1 must be in-bounds (it cannot be padded in-bounds).
@@ -138,7 +133,6 @@ impl<'a, P: GridNodePool> JpsExpander<'a, P> {
                 cost: cost + (DY * (new_y - y)) as f64,
             })
         }
-        all_1s
     }
 
     /// Jumps diagonally.
@@ -152,8 +146,6 @@ impl<'a, P: GridNodePool> JpsExpander<'a, P> {
         edges: &mut Vec<WeightedEdge<'a>>,
         mut x: i32,
         mut y: i32,
-        mut x_all_1s: i32,
-        mut y_all_1s: i32,
     ) {
         unsafe {
             let mut cost = 0.0;
@@ -179,11 +171,11 @@ impl<'a, P: GridNodePool> JpsExpander<'a, P> {
                 let xy_t = self.map.get_unchecked(x + DX, y + DY);
                 if x_t {
                     // x + DX, y is traversable, so this upholds the preconditions.
-                    x_all_1s = self.jump_x::<DX, DY>(edges, x, y, cost, x_all_1s);
+                    self.jump_x::<DX>(edges, x, y, cost);
                 }
                 if y_t {
                     // x, y + DY is traversable, so this upholds the preconditions.
-                    y_all_1s = self.jump_y::<DX, DY>(edges, x, y, cost, y_all_1s);
+                    self.jump_y::<DY>(edges, x, y, cost);
                 }
                 if !(x_t && y_t && xy_t) {
                     break;
@@ -205,23 +197,9 @@ impl<'a, P: GridNodePool> JpsExpander<'a, P> {
 /// - if `!forced`: `(jp_x, y)` is non-traversable; `jp_x` is padded in-bounds of `map`
 /// - `jp_x` is less than `x`
 #[inline(always)]
-unsafe fn jump_left<const DY: i32>(map: &BitGrid, mut x: i32, y: i32, all_1s: i32) -> (i32, bool) {
+unsafe fn jump_left(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
     unsafe {
         // See jump_right below; the logic is the same, except with reversed bit order.
-        while DY != 0 && x >= all_1s + 56 {
-            let row_adj = map.get_row_left(x, y + DY);
-            let row = map.get_row_left(x, y);
-
-            let adj_turning = !row_adj >> 1 & row_adj;
-            let stops = (adj_turning | !row) & !0x7F;
-
-            if stops != 0 {
-                let dist = stops.leading_zeros() as i32;
-                return (x - dist, row & (1 << (63 - dist)) != 0);
-            }
-
-            x -= 56;
-        }
         loop {
             let row_above = map.get_row_left(x, y - 1);
             let row = map.get_row_left(x, y);
@@ -252,7 +230,7 @@ unsafe fn jump_left<const DY: i32>(map: &BitGrid, mut x: i32, y: i32, all_1s: i3
 /// - if `!forced`: `(jp_x, y)` is non-traversable; `jp_x` is padded in-bounds of `map`
 /// - `jp_x` is greater than `x`
 #[inline(always)]
-unsafe fn jump_right<const DY: i32>(map: &BitGrid, mut x: i32, y: i32, all_1s: i32) -> (i32, bool) {
+unsafe fn jump_right(map: &BitGrid, mut x: i32, y: i32) -> (i32, bool) {
     unsafe {
         // This loop's logic is very similar to the following loop's logic.
         // DY == 0 disables all_1s-optimized jumps.
@@ -260,21 +238,6 @@ unsafe fn jump_right<const DY: i32>(map: &BitGrid, mut x: i32, y: i32, all_1s: i
         // This saves a get_row call and 4 bitops, about 3% on large maps.
         // We stop when the next block could contain a jump point on the -DY side, and switch to
         // normal jumping.
-        while DY != 0 && x <= all_1s - 56 {
-            // y is in-bounds and abs(DY) == 1, so y + DY must be padded in-bounds, as required.
-            let row_adj = map.get_row_right(x, y + DY);
-            let row = map.get_row_right(x, y);
-
-            let adj_turning = !row_adj << 1 & row_adj;
-            let stops = (adj_turning | !row) & ((1 << 57) - 1);
-
-            if stops != 0 {
-                let dist = stops.trailing_zeros() as i32;
-                return (x + dist, row & 1 << dist != 0);
-            }
-
-            x += 56;
-        }
         // Invariant: x and y are in-bounds of map.
         loop {
             // y is in-bounds, so y +- 1 must be padded in-bounds, as required.
@@ -319,33 +282,29 @@ impl<'a, P: GridNodePool> Expander<'a> for JpsExpander<'a, P> {
             // All jumps have the traversability of the relevant tile checked via successor set.
             // Remaining preconditions hold trivially.
 
-            let mut north_all_1s = y;
-            let mut south_all_1s = y;
-            let mut east_all_1s = x;
-            let mut west_all_1s = x;
             if successors.contains(Direction::North) {
-                north_all_1s = self.jump_y::<0, -1>(edges, x, y, 0.0, 0);
+                self.jump_y::<-1>(edges, x, y, 0.0);
             }
             if successors.contains(Direction::West) {
-                west_all_1s = self.jump_x::<-1, 0>(edges, x, y, 0.0, 0);
+                self.jump_x::<-1>(edges, x, y, 0.0);
             }
             if successors.contains(Direction::South) {
-                south_all_1s = self.jump_y::<0, 1>(edges, x, y, 0.0, 0);
+                self.jump_y::<1>(edges, x, y, 0.0);
             }
             if successors.contains(Direction::East) {
-                east_all_1s = self.jump_x::<1, 0>(edges, x, y, 0.0, 0);
+                self.jump_x::<1>(edges, x, y, 0.0);
             }
             if successors.contains(Direction::NorthWest) {
-                self.jump_diag::<-1, -1>(edges, x, y, west_all_1s, north_all_1s);
+                self.jump_diag::<-1, -1>(edges, x, y);
             }
             if successors.contains(Direction::SouthWest) {
-                self.jump_diag::<-1, 1>(edges, x, y, west_all_1s, south_all_1s);
+                self.jump_diag::<-1, 1>(edges, x, y);
             }
             if successors.contains(Direction::SouthEast) {
-                self.jump_diag::<1, 1>(edges, x, y, east_all_1s, south_all_1s);
+                self.jump_diag::<1, 1>(edges, x, y);
             }
             if successors.contains(Direction::NorthEast) {
-                self.jump_diag::<1, -1>(edges, x, y, east_all_1s, north_all_1s);
+                self.jump_diag::<1, -1>(edges, x, y);
             }
         }
     }
